@@ -16,12 +16,13 @@ class CreateBarang extends Migration
         Schema::create('barang', function (Blueprint $table) {
             $table->id();
             $table->string('nama');
-            $table->string('jenis_barang_id');
-            $table->string('merek_barang_id');
+            $table->string('jenis_id');
+            $table->string('merek_id');
             $table->string('satuan_id');
             $table->double('harga_1');
             $table->double('harga_2');
             $table->double('harga_3');
+            $table->string('catatan');
             $table->timestamps();
             $table->softDeletes();
         });
