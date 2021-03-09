@@ -20,9 +20,12 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
 
 
 // PELANGGAN
-Route::group(['prefix' => 'barang'], function () {  
-    //API
+Route::group(['prefix' => 'barang'], function () {
+    //POST
+    Route::post('/store', 'BarangController@store');
+    //GET
     Route::get('/', 'BarangController@index');
     Route::get('/satuan', 'BarangController@satuanList');
     Route::get('/jenis', 'BarangController@jenisList');
+    Route::get('/merek', 'BarangController@merekList');
   });
