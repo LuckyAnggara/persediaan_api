@@ -14,4 +14,8 @@ class Barang extends Model
     ];
     public $primaryKey = 'id';
     public $timestamps = true;
+
+    public function satuan(){ 
+        return $this->hasMany('App\Models\SatuanBarang','foreign_key'); 
+    }
 }
