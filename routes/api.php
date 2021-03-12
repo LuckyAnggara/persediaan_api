@@ -19,7 +19,7 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
 });
 
 
-// PELANGGAN
+// Barang
 Route::group(['prefix' => 'barang'], function () {
     //POST
     Route::post('/store', 'BarangController@store');
@@ -31,4 +31,15 @@ Route::group(['prefix' => 'barang'], function () {
     Route::get('/merek', 'BarangController@merekList');
     //DESTROY
     Route::delete('/{id}', 'BarangController@destroy');
-  });
+});
+
+// Barang
+Route::group(['prefix' => 'kontak'], function () {
+    //POST
+    Route::post('/store', 'KontakController@store');
+    //GET
+    Route::get('/', 'KontakController@index');
+    Route::get('/{id}', 'KontakController@show');
+    //DESTROY
+    Route::delete('/{id}', 'BarangController@destroy');
+});
