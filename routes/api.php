@@ -25,7 +25,10 @@ Route::group(['prefix' => 'barang'], function () {
     Route::post('/store', 'BarangController@store');
     //GET
     Route::get('/', 'BarangController@index');
+    Route::get('/{id}', 'BarangController@show');
     Route::get('/satuan', 'BarangController@satuanList');
     Route::get('/jenis', 'BarangController@jenisList');
     Route::get('/merek', 'BarangController@merekList');
+    //DESTROY
+    Route::delete('/{id}', 'BarangController@destroy');
   });

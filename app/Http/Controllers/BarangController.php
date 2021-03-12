@@ -13,13 +13,12 @@ use App\Models\SatuanBarang;
 class BarangController extends Controller
 {
     public function index(){
-
-
         $data = DB::table('barang')
         ->join('satuan_barang', 'barang.satuan_id', '=', 'satuan_barang.id')
         ->join('jenis_barang', 'barang.jenis_id', '=', 'jenis_barang.id')
         ->join('merek_barang', 'barang.merek_id', '=', 'merek_barang.id')
         ->select('barang.*', 'satuan_barang.nama as nama_satuan', 'jenis_barang.nama as nama_jenis', 'merek_barang.nama as nama_merek')
+        ->where('barang.deleted_at', '=',null)
         ->get();
         return response()->json($data, 200);
     }
@@ -33,6 +32,7 @@ class BarangController extends Controller
         $data = Barang::all();
         $output = collect($data)->last();
         $str = $request->nama[0];
+        $str = strtoupper($str);
         $kode_barang = $str.str_pad($output['id'] + 1,5,"0",STR_PAD_LEFT);
 
         while(Barang::where('kode_barang', $kode_barang)->exists()) {
@@ -51,6 +51,38 @@ class BarangController extends Controller
             'catatan' => $request->catatan,
         ]);
         return response()->json($data, 200);
+    }
+
+    public function show($id){
+        try{
+            // $barang = Barang::findOrFail($id);
+            $barang = DB::table('barang')
+            ->join('satuan_barang', 'barang.satuan_id', '=', 'satuan_barang.id')
+            ->join('jenis_barang', 'barang.jenis_id', '=', 'jenis_barang.id')
+            ->join('merek_barang', 'barang.merek_id', '=', 'merek_barang.id')
+            ->select('barang.*', 'satuan_barang.nama as nama_satuan', 'jenis_barang.nama as nama_jenis', 'merek_barang.nama as nama_merek')
+            ->where('barang.id', '=',$id)
+            ->first();
+            $code = 200;
+            $response = $barang;
+        }catch(Execption $e){
+            if($e instanceof ModelNotFoundException){
+                $code = 404;
+                $response = 'ID tidak ditemukan';
+            }else{
+                $code = 500;
+                $response = $e->getMessage();
+            }
+        }
+
+        return response()->json($response, 200);
+    }
+
+    public function destroy($id)
+    { 
+        $barang = Barang::find($id);
+        $barang->delete();
+        return response()->json($barang);
     }
 
     public function satuanList(){
