@@ -40,7 +40,18 @@ Route::group(['prefix' => 'barang'], function () {
     Route::delete('/harga/{id}', 'BarangController@hargaDestroy');
 });
 
-// Barang
+// Persediaan
+Route::group(['prefix' => 'persediaan'], function () {
+    //POST
+    Route::post('/store', 'KontakController@store');
+    //GET
+    Route::get('/', 'PersediaanController@index');
+    Route::get('/{id}', 'KontakController@show');
+    //DESTROY
+    Route::delete('/{id}', 'BarangController@destroy');
+});
+
+// Kontak
 Route::group(['prefix' => 'kontak'], function () {
     //POST
     Route::post('/store', 'KontakController@store');
