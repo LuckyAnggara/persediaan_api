@@ -23,14 +23,21 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
 Route::group(['prefix' => 'barang'], function () {
     //POST
     Route::post('/store', 'BarangController@store');
+    Route::post('/gudang/store', 'BarangController@gudangStore');
+    Route::post('/harga/store', 'BarangController@hargaStore');
+    Route::post('/jenis/store', 'BarangController@jenisStore');
+    Route::post('/satuan/store', 'BarangController@satuanStore');
+    Route::post('/merek/store', 'BarangController@merekStore');
     //GET
     Route::get('/', 'BarangController@index');
-    Route::get('/{id}', 'BarangController@show');
-    Route::get('/satuan', 'BarangController@satuanList');
-    Route::get('/jenis', 'BarangController@jenisList');
-    Route::get('/merek', 'BarangController@merekList');
+    Route::get('/detail/{id}', 'BarangController@show');
+    Route::get('/gudang', 'BarangController@gudang');
+    Route::get('/satuan', 'BarangController@satuan');
+    Route::get('/jenis', 'BarangController@jenis');
+    Route::get('/merek', 'BarangController@merek');
     //DESTROY
     Route::delete('/{id}', 'BarangController@destroy');
+    Route::delete('/harga/{id}', 'BarangController@hargaDestroy');
 });
 
 // Barang
