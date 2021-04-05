@@ -46,7 +46,7 @@ Route::group(['prefix' => 'persediaan'], function () {
     Route::post('/store', 'KontakController@store');
     //GET
     Route::get('/', 'PersediaanController@index');
-    Route::get('/{id}', 'KontakController@show');
+    Route::get('/{id}', 'PersediaanController@show');
     //DESTROY
     Route::delete('/{id}', 'BarangController@destroy');
 });
