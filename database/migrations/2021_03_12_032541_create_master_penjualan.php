@@ -15,17 +15,21 @@ class CreateMasterPenjualan extends Migration
     {
         Schema::create('master_penjualan', function (Blueprint $table) {
             $table->bigIncrements('id');
-            $table->char('nomor_transaksi', 255);
+            $table->char('nomor_transaksi', 255)->unique();
             $table->string('kontak_id');
             $table->double('total');
             $table->double('diskon');
             $table->double('ongkir');
-            $table->double('pajak_masukan');
+            $table->double('pajak_masukan')->nullable();
             $table->double('grand_total');
-            $table->string('syarat_pembayaran_id', 10);
-            $table->enum('status_pembayaran',['Dibayar','COD','Belum Dibayar']);
-            $table->enum('status_kredit',['Lunas','Kredit']);
-            $table->dateTime('jatuh_tempo');
+            $table->enum('metode_pembayaran', ['Lunas','Kredit','COD']);
+            $table->enum('kredit',['Iya','Tidak'])->nullable();
+            $table->double('down_payment')->nullable();
+            $table->double('sisa_pembayaran')->nullable();
+            $table->enum('cara_pembayaran', ['Tunai','Transfer']);
+            $table->string('bank_id')->nullable();
+            $table->dateTime('tanggal_jatuh_tempo')->nullable();
+            $table->enum('retur',['Iya','Tidak'])->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

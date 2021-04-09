@@ -61,3 +61,12 @@ Route::group(['prefix' => 'kontak'], function () {
     //DESTROY
     Route::delete('/{id}', 'BarangController@destroy');
 });
+
+// Transaksi
+Route::group(['prefix' => 'penjualan'], function () {
+    //POST
+    Route::post('/store', 'TransaksiPenjualanController@store');
+    //GET
+    Route::get('/', 'TransaksiPenjualanController@store');
+});
+
