@@ -21,17 +21,31 @@ class TransaksiPenjualanController extends Controller
             'ongkir' => $request->invoice['ongkir'],
             'pajak_masukan' => $request->invoice['pajak'],
             'grand_total' => $request->invoice['grandTotal'],
-            'metode_pembayaran' => $request->catatan,
-            'kredit' => $request->catatan,
-            'down_payment' => $request->catatan,
-            'sisa_pambayaran' => $request->catatan,
-            'cara_pembayaran' => $request->catatan,
-            'bank_id' => $request->catatan,
-            'tanggal_jatuh_tempo' => $request->catatan,
+            'metode_pembayaran' => $request->pembayaran['statusPembayaran']['title'],
+            'kredit' => $request->pembayaran['kredit'],
+            'down_payment' => $request->pembayaran['downPayment'],
+            'sisa_pambayaran' => (float)$request->invoice['grandTotal'] - (float)$request->pembayaran['downPayment'],
+            'cara_pembayaran' => $request->pembayaran['jenisPembayaran']['title'],
+            'bank_id' => $request->pembayaran['bank'] ? $request->pembayaran['bank']['value'] : null,
+            'tanggal_jatuh_tempo' => $request->pembayaran['tanggalJatuhTempo'],
             'retur' => 2,
         ]);
+        $id = $data->id;
+        if($id){
+            
+            foreach ($request->orders as $key => $value) {
+                $detail = DetailPenjualan::create([
+                    'master_penjualan_id'=> $id,
+                    'kode_barang_id' => $value['kode_barang'],
+                    'jumlah' => $value['jumlah'],
+                    'harga' => $value['harga_jual'],
+                    'diskon' => $value['diskon'],
+                    'total' => ($value['jumlah'] * $value['harga_jual']) - $value['diskon'],
+                ]);
+            }
+        }
 
-        return response()->json($request->invoice['total']);
+        return response()->json($data, 200);
     }
 
     public function makeNomorTrx(){
@@ -51,7 +65,7 @@ class TransaksiPenjualanController extends Controller
             return 'BBM-'.$date.'-'.'1';
            
         }
-        // return 'BBM-'.$date.'-'.'1';
+        return 'BBM-'.$date.'-'.'1';
 
 
       
