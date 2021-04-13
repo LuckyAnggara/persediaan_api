@@ -8,9 +8,10 @@ use App\Models\Kontak;
 
 class KontakController extends Controller
 {
-    public function index(){
+    public function pelanggan(){
         $data = DB::table('master_kontak')
         ->select('*')
+        ->where('wic', '=',0)
         ->where('deleted_at', '=',null)
         ->get();
         return response()->json($data, 200);

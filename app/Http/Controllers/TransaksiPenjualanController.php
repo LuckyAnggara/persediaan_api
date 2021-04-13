@@ -106,15 +106,6 @@ class TransaksiPenjualanController extends Controller
         ];
     }
 
-    public function index2(){
-        $data = DB::table('master_kontak')
-        ->where('wic','=','0')
-        ->get();
-
-        
-      
-        return response()->json($data, 200);
-    }
     
     public function store(Request $request){
         $nomor_transaksi = $this->makeNomorTrx();
@@ -137,7 +128,6 @@ class TransaksiPenjualanController extends Controller
         ]);
         $id = $data->id;
         if($id){
-            
             foreach ($request->orders as $key => $value) {
                 $detail = DetailPenjualan::create([
                     'master_penjualan_id'=> $id,
