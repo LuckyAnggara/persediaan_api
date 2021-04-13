@@ -67,6 +67,6 @@ Route::group(['prefix' => 'penjualan'], function () {
     //POST
     Route::post('/store', 'TransaksiPenjualanController@store');
     //GET
-    Route::get('/', 'TransaksiPenjualanController@store');
+    Route::get('/', 'TransaksiPenjualanController@index');
+    Route::get('/kontak', 'TransaksiPenjualanController@index2');
 });
-

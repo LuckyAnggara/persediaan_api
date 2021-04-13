@@ -1,16 +1,121 @@
 <?php
 
 namespace App\Http\Controllers;
+use Illuminate\Support\Facades\DB;
 
 use Illuminate\Http\Request;
 use App\Models\Barang;
 use App\Models\Kontak;
 use App\Models\TransaksiPenjualan;
 use App\Models\DetailPenjualan;
+use App\Models\User;
 
 
 class TransaksiPenjualanController extends Controller
 {
+
+    public function index(){
+        $master = DB::table('master_penjualan')
+        // ->join('satuan_barang', 'barang.satuan_id', '=', 'satuan_barang.id')
+        ->get();
+
+        foreach ($master as $key => $value) {
+        $invoice = [
+            'diskon'=>$value->diskon,
+            'grandTotal'=>$value->grand_total,
+            'ongkir'=>$value->ongkir,
+            'pajak'=>$value->pajak_masukan,
+            'total'=>$value->total,
+        ];
+
+        $user = $barang = User::find($value->user_id);
+
+        $orders = DB::table('detail_penjualan')
+        ->select('detail_penjualan.*', 'barang.nama as nama_barang')
+        ->join('barang','detail_penjualan.kode_barang_id','=','barang.kode_barang')    
+        ->where('master_penjualan_id','=',$value->id)    
+        ->get();
+
+        $pelanggan = DB::table('master_kontak')
+        ->where('id','=',$value->kontak_id)
+        ->first();
+
+        $bank = DB::table('master_bank')
+        ->where('id','=',$value->bank_id)
+        ->first();
+
+        $pembayaran = [
+            'bank'=>$bank,
+            'downPayment'=>$value->down_payment,
+            'jenisPembayaran' => $this->caraPembayaran($value->cara_pembayaran),
+            'kredit'=>$value->kredit,
+            'statusPembayaran'=>$this->metodePembayaran($value->metode_pembayaran),
+            'tanggalJatuhTempo'=>$value->tanggal_jatuh_tempo,
+        ];
+
+        $data = [
+            'id'=>$value->id,
+            'nomorTransaksi'=>$value->nomor_transaksi,
+            'tanggalTransaksi'=>$value->created_at,
+            'invoice'=> $invoice,
+            'orders'=>$orders,
+            'pelanggan'=>$pelanggan,
+            'pembayaran'=>$pembayaran,
+            'user'=> $user
+
+        ];
+
+        $output[] = $data;
+        }
+
+        return response()->json($output, 200);
+    }
+
+    public function metodePembayaran($text){
+        $title = '';
+        $value = 0;
+        if($text == 'Lunas'){
+            $title = $text;
+            $value = 0;
+        }else if($text == 'Kredit'){
+            $title = $text;
+            $value = 1;
+        }else if($text == 'Cash On Delivery (COD)'){
+            $title = $text;
+            $value = 2;
+        }
+        return [
+            'title'=> $title,
+            'value' => $value
+        ];
+    }
+
+    public function caraPembayaran($text){
+        $title = '';
+        $value = 0;
+        if($text == 'Tunai'){
+            $title = $text;
+            $value = 0;
+        }else if($text == 'Transfer'){
+            $title = $text;
+            $value = 1;
+        }
+        return [
+            'title'=> $title,
+            'value' => $value
+        ];
+    }
+
+    public function index2(){
+        $data = DB::table('master_kontak')
+        ->where('wic','=','0')
+        ->get();
+
+        
+      
+        return response()->json($data, 200);
+    }
+    
     public function store(Request $request){
         $nomor_transaksi = $this->makeNomorTrx();
         $data = TransaksiPenjualan::create([
@@ -38,9 +143,9 @@ class TransaksiPenjualanController extends Controller
                     'master_penjualan_id'=> $id,
                     'kode_barang_id' => $value['kode_barang'],
                     'jumlah' => $value['jumlah'],
-                    'harga' => $value['harga_jual'],
+                    'harga' => $value['harga'],
                     'diskon' => $value['diskon'],
-                    'total' => ($value['jumlah'] * $value['harga_jual']) - $value['diskon'],
+                    'total' => ($value['jumlah'] * $value['harga']) - $value['diskon'],
                 ]);
             }
         }
