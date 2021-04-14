@@ -109,9 +109,10 @@ class TransaksiPenjualanController extends Controller
     
     public function store(Request $request){
         $nomor_transaksi = $this->makeNomorTrx();
+
         $data = TransaksiPenjualan::create([
             'nomor_transaksi'=> $nomor_transaksi,
-            'kontak_id' => 0,
+            'kontak_id' => $this->cekPelanggan($request->pelanggan),
             'total' => $request->invoice['total'],
             'diskon' => $request->invoice['diskon'],
             'ongkir' => $request->invoice['ongkir'],
@@ -125,6 +126,7 @@ class TransaksiPenjualanController extends Controller
             'bank_id' => $request->pembayaran['bank'] ? $request->pembayaran['bank']['value'] : null,
             'tanggal_jatuh_tempo' => $request->pembayaran['tanggalJatuhTempo'],
             'retur' => 2,
+            'user_id' => 1,
         ]);
         $id = $data->id;
         if($id){
@@ -160,9 +162,20 @@ class TransaksiPenjualanController extends Controller
             return 'BBM-'.$date.'-'.'1';
            
         }
-        return 'BBM-'.$date.'-'.'1';
+        return 'BBM-'.$date.'-'.'1';      
+    }
 
-
-      
+    public function cekPelanggan($data){
+        if($data['id'] == null || $data['id'] == '' ){
+            $kontak = Kontak::create([
+                'nama'=> $data['nama'],
+                'tipe'=> 'PELANGGAN',
+                'alamat'=> $data['alamat'],
+                'telepon'=> $data['nomorTelepon'],
+                'wic'=> 1,
+            ]);
+            return $kontak->id;
+        }
+        return $data['id'];
     }
 }
