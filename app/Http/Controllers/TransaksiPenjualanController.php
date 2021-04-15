@@ -71,40 +71,7 @@ class TransaksiPenjualanController extends Controller
         return response()->json($output, 200);
     }
 
-    public function metodePembayaran($text){
-        $title = '';
-        $value = 0;
-        if($text == 'Lunas'){
-            $title = $text;
-            $value = 0;
-        }else if($text == 'Kredit'){
-            $title = $text;
-            $value = 1;
-        }else if($text == 'Cash On Delivery (COD)'){
-            $title = $text;
-            $value = 2;
-        }
-        return [
-            'title'=> $title,
-            'value' => $value
-        ];
-    }
 
-    public function caraPembayaran($text){
-        $title = '';
-        $value = 0;
-        if($text == 'Tunai'){
-            $title = $text;
-            $value = 0;
-        }else if($text == 'Transfer'){
-            $title = $text;
-            $value = 1;
-        }
-        return [
-            'title'=> $title,
-            'value' => $value
-        ];
-    }
 
     
     public function store(Request $request){
@@ -143,6 +110,54 @@ class TransaksiPenjualanController extends Controller
         }
 
         return response()->json($data, 200);
+    }
+
+
+    public function getDetailTransaksiByBarang($kode_barang){
+        $master = DB::table('detail_penjualan')
+        ->select('detail_penjualan.*', 'master_penjualan.nomor_transaksi as nomor_transaksi','master_penjualan.sisa_pembayaran','master_kontak.nama as nama_pelanggan')
+        ->where('kode_barang_id','=',$kode_barang)    
+        ->join('master_penjualan','detail_penjualan.master_penjualan_id','=','master_penjualan.id')    
+        ->join('master_kontak','master_penjualan.kontak_id','=','master_kontak.id')    
+        ->get();
+
+        return response()->json($master, 200);
+    }
+
+    //  FUNGSI STANDARD
+    public function metodePembayaran($text){
+        $title = '';
+        $value = 0;
+        if($text == 'Lunas'){
+            $title = $text;
+            $value = 0;
+        }else if($text == 'Kredit'){
+            $title = $text;
+            $value = 1;
+        }else if($text == 'Cash On Delivery (COD)'){
+            $title = $text;
+            $value = 2;
+        }
+        return [
+            'title'=> $title,
+            'value' => $value
+        ];
+    }
+
+    public function caraPembayaran($text){
+        $title = '';
+        $value = 0;
+        if($text == 'Tunai'){
+            $title = $text;
+            $value = 0;
+        }else if($text == 'Transfer'){
+            $title = $text;
+            $value = 1;
+        }
+        return [
+            'title'=> $title,
+            'value' => $value
+        ];
     }
 
     public function makeNomorTrx(){
