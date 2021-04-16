@@ -47,6 +47,7 @@ class TransaksiPenjualanController extends Controller
         $pembayaran = [
             'bank'=>$bank,
             'downPayment'=>$value->down_payment,
+            'sisaPembayaran'=>$value->sisa_pembayaran,
             'jenisPembayaran' => $this->caraPembayaran($value->cara_pembayaran),
             'kredit'=>$value->kredit,
             'statusPembayaran'=>$this->metodePembayaran($value->metode_pembayaran),
