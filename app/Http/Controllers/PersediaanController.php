@@ -36,27 +36,36 @@ class PersediaanController extends Controller
 
     public function show($id){
       
-
+        $persediaan =[];
         try{
             // $barang = Barang::findOrFail($id);
-            $barang = DB::table('barang')
-            ->join('jenis_barang', 'barang.jenis_id', '=', 'jenis_barang.id')
-            ->join('merek_barang', 'barang.merek_id', '=', 'merek_barang.id')
-            ->join('gudang', 'barang.gudang_id', '=', 'gudang.id')
-            ->select('barang.*', 'gudang.nama as nama_gudang','jenis_barang.nama as nama_jenis', 'merek_barang.nama as nama_merek')
-            ->where('barang.id', '=',$id)
-            ->first();
+            // $barang = DB::table('barang')
+            // ->join('jenis_barang', 'barang.jenis_id', '=', 'jenis_barang.id')
+            // ->join('merek_barang', 'barang.merek_id', '=', 'merek_barang.id')
+            // ->join('gudang', 'barang.gudang_id', '=', 'gudang.id')
+            // ->select('barang.*', 'gudang.nama as nama_gudang','jenis_barang.nama as nama_jenis', 'merek_barang.nama as nama_merek')
+            // ->where('barang.id', '=',$id)
+            // ->first();
             
-            $persediaan = DB::table('master_persediaan')
+            $data = DB::table('master_persediaan')
             ->select('*')
-            ->where('kode_barang', '=',$barang->kode_barang)
+            ->where('kode_barang_id', '=',$id)
             ->orderBy('id', 'desc')
             ->get();
 
+            foreach ($data as $key => $value) {
+                $master_penjualan = DB::table('master_penjualan')
+                ->select('*')
+                ->where('id', '=',$value->master_penjualan_id)
+                ->orderBy('id', 'desc')
+                ->first();
+                $value->master_penjualan = $master_penjualan;
+                $persediaan[] = $value;
+            }
+            
+            $response = $persediaan;
+
             $code = 200;
-            $response['databarang'] = $barang;
-            $response['databarang']->saldo_akhir = $persediaan[0]->saldo;
-            $response['persediaan']= $persediaan;
         }catch(Execption $e){
             if($e instanceof ModelNotFoundException){
                 $code = 404;

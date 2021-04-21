@@ -78,6 +78,14 @@ class TransaksiPenjualanController extends Controller
     public function store(Request $request){
         $nomor_transaksi = $this->makeNomorTrx();
 
+        if($request->pembayaran['statusPembayaran']['value'] == 2){
+            $sisa_pembayaran = $request->invoice['grandTotal'];
+        }else if($request->pembayaran['statusPembayaran']['value'] == 1){
+            $sisa_pembayaran = (float)$request->invoice['grandTotal'] - (float)$request->pembayaran['downPayment'];
+        }else{
+            $sisa_pembayaran = 0;
+        }
+
         $data = TransaksiPenjualan::create([
             'nomor_transaksi'=> $nomor_transaksi,
             'kontak_id' => $this->cekPelanggan($request->pelanggan),
@@ -89,7 +97,7 @@ class TransaksiPenjualanController extends Controller
             'metode_pembayaran' => $request->pembayaran['statusPembayaran']['title'],
             'kredit' => $request->pembayaran['kredit'],
             'down_payment' => $request->pembayaran['downPayment'],
-            'sisa_pambayaran' => (float)$request->invoice['grandTotal'] - (float)$request->pembayaran['downPayment'],
+            'sisa_pembayaran' => $sisa_pembayaran,
             'cara_pembayaran' => $request->pembayaran['jenisPembayaran']['title'],
             'bank_id' => $request->pembayaran['bank'] ? $request->pembayaran['bank']['value'] : null,
             'tanggal_jatuh_tempo' => $request->pembayaran['tanggalJatuhTempo'],

@@ -43,7 +43,6 @@ Route::group(['prefix' => 'barang'], function () {
 // Persediaan
 Route::group(['prefix' => 'persediaan'], function () {
     //POST
-    Route::post('/store', 'KontakController@store');
     //GET
     Route::get('/', 'PersediaanController@index');
     Route::get('/{id}', 'PersediaanController@show');
@@ -63,6 +62,11 @@ Route::group(['prefix' => 'kontak'], function () {
     Route::delete('/{id}', 'BarangController@destroy');
 });
 
+// Bank
+Route::group(['prefix' => 'bank'], function () {
+    //GET
+    Route::get('/', 'BankController@index');
+});
 // Transaksi
 Route::group(['prefix' => 'penjualan'], function () {
     //POST
