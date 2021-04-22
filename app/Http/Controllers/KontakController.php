@@ -15,6 +15,9 @@ class KontakController extends Controller
         ->where('deleted_at', '=',null)
         ->get();
         return response()->json($data, 200);
+
+
+
     }
     // public function pelanggan(){
     //     $data = DB::table('master_kontak')
