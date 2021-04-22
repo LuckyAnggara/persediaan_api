@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use Illuminate\Support\Facades\DB;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use App\Models\Barang;
 use App\Models\Kontak;
 use App\Models\TransaksiPenjualan;
@@ -11,9 +12,9 @@ use App\Models\DetailPenjualan;
 use App\Models\User;
 
 
+
 class TransaksiPenjualanController extends Controller
 {
-
     public function index(){
         $master = DB::table('master_penjualan')
         // ->join('satuan_barang', 'barang.satuan_id', '=', 'satuan_barang.id')
@@ -24,7 +25,7 @@ class TransaksiPenjualanController extends Controller
             'diskon'=>$value->diskon,
             'grandTotal'=>$value->grand_total,
             'ongkir'=>$value->ongkir,
-            'pajak'=>$value->pajak_masukan,
+            'pajak'=>$value->pajak_keluaran,
             'total'=>$value->total,
         ];
 
@@ -71,10 +72,7 @@ class TransaksiPenjualanController extends Controller
 
         return response()->json($output, 200);
     }
-
-
-
-    
+ 
     public function store(Request $request){
         $nomor_transaksi = $this->makeNomorTrx();
 
@@ -92,7 +90,7 @@ class TransaksiPenjualanController extends Controller
             'total' => $request->invoice['total'],
             'diskon' => $request->invoice['diskon'],
             'ongkir' => $request->invoice['ongkir'],
-            'pajak_masukan' => $request->invoice['pajak'],
+            'pajak_keluaran' => $request->invoice['pajak'],
             'grand_total' => $request->invoice['grandTotal'],
             'metode_pembayaran' => $request->pembayaran['statusPembayaran']['title'],
             'kredit' => $request->pembayaran['kredit'],
@@ -117,11 +115,107 @@ class TransaksiPenjualanController extends Controller
                 ]);
             }
         }
+        $this->postJurnal(
+            $nomor_transaksi,
+            'PENJUALAN NOMOR INVOICE #'.$nomor_transaksi,
+            $request->invoice['total'],
+            $request->invoice['pajak'],
+            $request->invoice['ongkir'],
+            $request->invoice['diskon'],
+            $request->pembayaran['kredit'],
+            $request->pembayaran['downPayment'],
+        );
 
         return response()->json($data, 200);
     }
 
+    public function postJurnal($nomor_transaksi,$keterangan, $penjualan, $pajak = 0, $ongkir = 0, $diskon = 0, $piutang = false, $dp=0){
+        $reqJurnal = Http::get('http://127.0.0.1:8080/api/jurnal/reqnomorjurnal');
+        $nomorJurnal = $reqJurnal->json();
+        $kas = $penjualan + $pajak + $ongkir;
+        if($piutang == false){
+            $kas = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
+                'reff'=>$nomor_transaksi,
+                'nomor_jurnal'=>$nomorJurnal,
+                'master_akun_id'=>'1.1.1', // KAS
+                'nominal'=>$kas,
+                'jenis'=>'DEBIT',
+                'keterangan'=>'PENERIMAAN KAS '. $keterangan,
+            ]);
+            $response['kas'] = $kas->json();
 
+        }else{
+            if($dp !== 0){
+                $kas = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
+                    'reff'=>$nomor_transaksi,
+                    'nomor_jurnal'=>$nomorJurnal,
+                    'master_akun_id'=>'1.1.1', // KAS
+                    'nominal'=>$dp,
+                    'jenis'=>'DEBIT',
+                    'keterangan'=>'PENERIMAAN KAS DOWN PAYMENT '. $keterangan,
+                ]);
+                $response['kas'] = $kas->json();
+
+            }
+            $piutang = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
+                'reff'=>$nomor_transaksi,
+                'nomor_jurnal'=>$nomorJurnal,
+                'master_akun_id'=>'1.1.3', // PIUTANG DAGANG
+                'nominal'=>$kas - $dp,
+                'jenis'=>'DEBIT',
+                'keterangan'=>'PIUTANG '. $keterangan,
+            ]);
+            $response['piutang'] = $piutang->json();
+
+        }
+
+        $penjualan = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
+            'reff'=>$nomor_transaksi,
+            'nomor_jurnal'=>$nomorJurnal,
+            'master_akun_id'=>'4.1.1', // PENJUALAN
+            'nominal'=>$penjualan,
+            'jenis'=>'KREDIT',
+            'keterangan'=>$keterangan,
+        ]);
+        $response['penjualan'] = $penjualan->json();
+
+
+        if($pajak !== 0){
+            $pajak = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
+                'reff'=>$nomor_transaksi,
+                'nomor_jurnal'=>$nomorJurnal,
+                'master_akun_id'=>'2.3.1', // PAJAK KELUARAN
+                'nominal'=>$pajak,
+                'jenis'=>'KREDIT',
+                'keterangan'=>'PAJAK KELUARAN '. $keterangan,
+            ]);
+            $response['pajak'] = $pajak->json();
+        }
+        if($ongkir !== 0){
+            $ongkir = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
+                'reff'=>$nomor_transaksi,
+                'nomor_jurnal'=>$nomorJurnal,
+                'master_akun_id'=>'4.1.2', // AKUN PENDAPATAN LAIN LAIN
+                'nominal'=>$ongkir,
+                'jenis'=>'KREDIT',
+                'keterangan'=>'ONGKIR '. $keterangan,
+            ]);
+            $response['ongkir'] = $ongkir->json();
+        }
+        if($diskon !== 0){
+            $diskon = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
+                'reff'=>$nomor_transaksi,
+                'nomor_jurnal'=>$nomorJurnal,
+                'master_akun_id'=>'4.1.3', // AKUN DISKON PENJUALAN
+                'nominal'=>$diskon,
+                'jenis'=>'DEBIT',
+                'keterangan'=>'DISKON '. $keterangan,
+            ]);
+            $response['diskon'] = $diskon->json();
+        }
+
+        return response()->json($response, 200);
+    }
     public function getDetailTransaksiByBarang($kode_barang){
         $master = DB::table('detail_penjualan')
         ->select('detail_penjualan.*', 'master_penjualan.nomor_transaksi as nomor_transaksi','master_penjualan.sisa_pembayaran','master_kontak.nama as nama_pelanggan')
