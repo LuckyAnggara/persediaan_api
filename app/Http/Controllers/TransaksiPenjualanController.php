@@ -124,98 +124,13 @@ class TransaksiPenjualanController extends Controller
             $request->invoice['diskon'],
             $request->pembayaran['kredit'],
             $request->pembayaran['downPayment'],
+            $sisa_pembayaran,
         );
 
         return response()->json($data, 200);
     }
 
-    public function postJurnal($nomor_transaksi,$keterangan, $penjualan, $pajak = 0, $ongkir = 0, $diskon = 0, $piutang = false, $dp=0){
-        $reqJurnal = Http::get('http://127.0.0.1:8080/api/jurnal/reqnomorjurnal');
-        $nomorJurnal = $reqJurnal->json();
-        $kas = $penjualan + $pajak + $ongkir;
-        if($piutang == false){
-            $kas = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
-                'reff'=>$nomor_transaksi,
-                'nomor_jurnal'=>$nomorJurnal,
-                'master_akun_id'=>'1.1.1', // KAS
-                'nominal'=>$kas,
-                'jenis'=>'DEBIT',
-                'keterangan'=>'PENERIMAAN KAS '. $keterangan,
-            ]);
-            $response['kas'] = $kas->json();
-
-        }else{
-            if($dp !== 0){
-                $kas = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
-                    'reff'=>$nomor_transaksi,
-                    'nomor_jurnal'=>$nomorJurnal,
-                    'master_akun_id'=>'1.1.1', // KAS
-                    'nominal'=>$dp,
-                    'jenis'=>'DEBIT',
-                    'keterangan'=>'PENERIMAAN KAS DOWN PAYMENT '. $keterangan,
-                ]);
-                $response['kas'] = $kas->json();
-
-            }
-            $piutang = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
-                'reff'=>$nomor_transaksi,
-                'nomor_jurnal'=>$nomorJurnal,
-                'master_akun_id'=>'1.1.3', // PIUTANG DAGANG
-                'nominal'=>$kas - $dp,
-                'jenis'=>'DEBIT',
-                'keterangan'=>'PIUTANG '. $keterangan,
-            ]);
-            $response['piutang'] = $piutang->json();
-
-        }
-
-        $penjualan = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
-            'reff'=>$nomor_transaksi,
-            'nomor_jurnal'=>$nomorJurnal,
-            'master_akun_id'=>'4.1.1', // PENJUALAN
-            'nominal'=>$penjualan,
-            'jenis'=>'KREDIT',
-            'keterangan'=>$keterangan,
-        ]);
-        $response['penjualan'] = $penjualan->json();
-
-
-        if($pajak !== 0){
-            $pajak = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
-                'reff'=>$nomor_transaksi,
-                'nomor_jurnal'=>$nomorJurnal,
-                'master_akun_id'=>'2.3.1', // PAJAK KELUARAN
-                'nominal'=>$pajak,
-                'jenis'=>'KREDIT',
-                'keterangan'=>'PAJAK KELUARAN '. $keterangan,
-            ]);
-            $response['pajak'] = $pajak->json();
-        }
-        if($ongkir !== 0){
-            $ongkir = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
-                'reff'=>$nomor_transaksi,
-                'nomor_jurnal'=>$nomorJurnal,
-                'master_akun_id'=>'4.1.2', // AKUN PENDAPATAN LAIN LAIN
-                'nominal'=>$ongkir,
-                'jenis'=>'KREDIT',
-                'keterangan'=>'ONGKIR '. $keterangan,
-            ]);
-            $response['ongkir'] = $ongkir->json();
-        }
-        if($diskon !== 0){
-            $diskon = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
-                'reff'=>$nomor_transaksi,
-                'nomor_jurnal'=>$nomorJurnal,
-                'master_akun_id'=>'4.1.3', // AKUN DISKON PENJUALAN
-                'nominal'=>$diskon,
-                'jenis'=>'DEBIT',
-                'keterangan'=>'DISKON '. $keterangan,
-            ]);
-            $response['diskon'] = $diskon->json();
-        }
-
-        return response()->json($response, 200);
-    }
+    
     public function getDetailTransaksiByBarang($kode_barang){
         $master = DB::table('detail_penjualan')
         ->select('detail_penjualan.*', 'master_penjualan.nomor_transaksi as nomor_transaksi','master_penjualan.sisa_pembayaran','master_kontak.nama as nama_pelanggan')
@@ -295,5 +210,96 @@ class TransaksiPenjualanController extends Controller
             return $kontak->id;
         }
         return $data['id'];
+    }
+
+
+    // JURNAL
+    
+    public function postJurnal($nomor_transaksi,$keterangan, $penjualan, $pajak = 0, $ongkir = 0, $diskon = 0, $piutang = false, $dp=0, $sisa_pembayaran=0){
+        $reqJurnal = Http::get('http://127.0.0.1:8080/api/jurnal/reqnomorjurnal');
+        $nomorJurnal = $reqJurnal->json();
+        $kas = $penjualan + $pajak + $ongkir;
+        if($piutang == false){
+            $kas = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
+                'reff'=>$nomor_transaksi,
+                'nomor_jurnal'=>$nomorJurnal,
+                'master_akun_id'=>'3', // KAS
+                'nominal'=>$kas,
+                'jenis'=>'DEBIT',
+                'keterangan'=>'PENERIMAAN KAS '. $keterangan,
+            ]);
+            $response['kas'] = $kas->json();
+
+        }else{
+            if($dp !== 0){
+                $kas = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
+                    'reff'=>$nomor_transaksi,
+                    'nomor_jurnal'=>$nomorJurnal,
+                    'master_akun_id'=>'3', // KAS
+                    'nominal'=>$dp,
+                    'jenis'=>'DEBIT',
+                    'keterangan'=>'PENERIMAAN KAS DOWN PAYMENT '. $keterangan,
+                ]);
+                $response['kas'] = $kas->json();
+
+            }
+            $piutang = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
+                'reff'=>$nomor_transaksi,
+                'nomor_jurnal'=>$nomorJurnal,
+                'master_akun_id'=>'5', // PIUTANG DAGANG
+                'nominal'=>$sisa_pembayaran,
+                'jenis'=>'DEBIT',
+                'keterangan'=>'PIUTANG '. $keterangan,
+            ]);
+            $response['piutang'] = $piutang->json();
+
+        }
+
+        $penjualan = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
+            'reff'=>$nomor_transaksi,
+            'nomor_jurnal'=>$nomorJurnal,
+            'master_akun_id'=>'32', // PENJUALAN
+            'nominal'=>$penjualan,
+            'jenis'=>'KREDIT',
+            'keterangan'=>$keterangan,
+        ]);
+        $response['penjualan'] = $penjualan->json();
+
+
+        if($pajak !== 0){
+            $pajak = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
+                'reff'=>$nomor_transaksi,
+                'nomor_jurnal'=>$nomorJurnal,
+                'master_akun_id'=>'26', // PAJAK KELUARAN
+                'nominal'=>$pajak,
+                'jenis'=>'KREDIT',
+                'keterangan'=>'PAJAK KELUARAN '. $keterangan,
+            ]);
+            $response['pajak'] = $pajak->json();
+        }
+        if($ongkir !== 0){
+            $ongkir = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
+                'reff'=>$nomor_transaksi,
+                'nomor_jurnal'=>$nomorJurnal,
+                'master_akun_id'=>'33', // AKUN PENDAPATAN LAIN LAIN
+                'nominal'=>$ongkir,
+                'jenis'=>'KREDIT',
+                'keterangan'=>'ONGKIR '. $keterangan,
+            ]);
+            $response['ongkir'] = $ongkir->json();
+        }
+        if($diskon !== 0){
+            $diskon = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
+                'reff'=>$nomor_transaksi,
+                'nomor_jurnal'=>$nomorJurnal,
+                'master_akun_id'=>'35', // AKUN DISKON PENJUALAN
+                'nominal'=>$diskon,
+                'jenis'=>'DEBIT',
+                'keterangan'=>'DISKON '. $keterangan,
+            ]);
+            $response['diskon'] = $diskon->json();
+        }
+
+        return response()->json($response, 200);
     }
 }

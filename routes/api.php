@@ -71,7 +71,7 @@ Route::group(['prefix' => 'bank'], function () {
 Route::group(['prefix' => 'penjualan'], function () {
     //POST
     Route::post('/store', 'TransaksiPenjualanController@store');
-    Route::get('/store2', 'TransaksiPenjualanController@index2');
+    Route::get('/store2', 'TransaksiPenjualanController@postJurnal');
     //GET
     Route::get('/', 'TransaksiPenjualanController@index');
     Route::get('/detail/barang/{id}', 'TransaksiPenjualanController@getDetailTransaksiByBarang');
