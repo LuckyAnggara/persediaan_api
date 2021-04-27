@@ -67,12 +67,24 @@ Route::group(['prefix' => 'bank'], function () {
     //GET
     Route::get('/', 'BankController@index');
 });
-// Transaksi
+
+// Transaksi Penjualan
 Route::group(['prefix' => 'penjualan'], function () {
     //POST
     Route::post('/store', 'TransaksiPenjualanController@store');
     Route::get('/store2', 'TransaksiPenjualanController@postJurnal');
     //GET
-    Route::get('/', 'TransaksiPenjualanController@index');
+    Route::get('/{dd}/{ddd}', 'TransaksiPenjualanController@index');
     Route::get('/detail/barang/{id}', 'TransaksiPenjualanController@getDetailTransaksiByBarang');
+});
+
+// Transaksi Pembelian
+Route::group(['prefix' => 'pembelian'], function () {
+    //POST
+    Route::post('/store', 'TransaksiPembelianController@store');
+    Route::get('/store2', 'TransaksiPembelianController@postJurnal');
+    //GET
+    // Route::get('/', 'TransaksiPembelianController@index2');
+    Route::get('/{dd}/{ddd}', 'TransaksiPembelianController@index');
+    Route::get('/detail/barang/{id}', 'TransaksiPembelianController@getDetailTransaksiByBarang');
 });

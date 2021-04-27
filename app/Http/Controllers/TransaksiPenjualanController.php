@@ -15,9 +15,14 @@ use App\Models\User;
 
 class TransaksiPenjualanController extends Controller
 {
-    public function index(){
+    public function index($dd, $ddd){
+        $output = [];
+        $dateawal = date("Y-m-d 00:00:01", strtotime($dd));
+        $dateakhir = date("Y-m-d 23:59:59", strtotime($ddd));
         $master = DB::table('master_penjualan')
-        // ->join('satuan_barang', 'barang.satuan_id', '=', 'satuan_barang.id')
+        ->where('created_at','>',$dateawal)    
+        ->where('created_at','<',$dateakhir)  
+        ->where('deleted_at')    
         ->get();
 
         foreach ($master as $key => $value) {
