@@ -23,8 +23,8 @@ class CreateKartuPersediaan extends Migration
             $table->double('harga_jual');
             $table->double('saldo');
             $table->text('catatan');
-            $table->timestamps();
-            $table->softDeletes();
+            $table->char('fullName');
+            $table->char('fullName');
         });
     }
 

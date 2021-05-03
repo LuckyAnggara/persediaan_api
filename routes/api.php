@@ -18,7 +18,17 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
     return $request->user();
 });
 
+// Cabang
+Route::group(['prefix' => 'auth'], function () {
+    //POST
+    Route::post('/login', 'AuthController@login');
+});
 
+// Cabang
+Route::group(['prefix' => 'cabang'], function () {
+    //GET
+    Route::get('/', 'CabangController@index');
+});
 // Barang
 Route::group(['prefix' => 'barang'], function () {
     //POST
