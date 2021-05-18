@@ -10,141 +10,393 @@ use App\Models\Kontak;
 use App\Models\TransaksiPenjualan;
 use App\Models\DetailPenjualan;
 use App\Models\User;
+use App\Models\KartuPersediaan;
+use App\Models\Pegawai;
 
 
 
 class TransaksiPenjualanController extends Controller
 {
-    public function index($dd, $ddd){
+    public function index($cabang, $dd, $ddd){
         $output = [];
         $dateawal = date("Y-m-d 00:00:01", strtotime($dd));
         $dateakhir = date("Y-m-d 23:59:59", strtotime($ddd));
         $master = DB::table('master_penjualan')
         ->where('created_at','>',$dateawal)    
-        ->where('created_at','<',$dateakhir)  
+        ->where('created_at','<',$dateakhir)
+        ->where('cabang_id', $cabang == 0 ? '!=' : '=', $cabang)    
         ->where('deleted_at')    
         ->get();
 
-        foreach ($master as $key => $value) {
-        $invoice = [
-            'diskon'=>$value->diskon,
-            'grandTotal'=>$value->grand_total,
-            'ongkir'=>$value->ongkir,
-            'pajak'=>$value->pajak_keluaran,
-            'total'=>$value->total,
-        ];
-
-        $user = $barang = User::find($value->user_id);
-
-        $orders = DB::table('detail_penjualan')
-        ->select('detail_penjualan.*', 'barang.nama as nama_barang')
-        ->join('barang','detail_penjualan.kode_barang_id','=','barang.kode_barang')    
-        ->where('master_penjualan_id','=',$value->id)    
-        ->get();
-
-        $pelanggan = DB::table('master_kontak')
-        ->where('id','=',$value->kontak_id)
-        ->first();
-
-        $bank = DB::table('master_bank')
-        ->where('id','=',$value->bank_id)
-        ->first();
-
-        $pembayaran = [
-            'bank'=>$bank,
-            'downPayment'=>$value->down_payment,
-            'sisaPembayaran'=>$value->sisa_pembayaran,
-            'jenisPembayaran' => $this->caraPembayaran($value->cara_pembayaran),
-            'kredit'=>$value->kredit,
-            'statusPembayaran'=>$this->metodePembayaran($value->metode_pembayaran),
-            'tanggalJatuhTempo'=>$value->tanggal_jatuh_tempo,
-        ];
-
-        $data = [
-            'id'=>$value->id,
-            'nomorTransaksi'=>$value->nomor_transaksi,
-            'tanggalTransaksi'=>$value->created_at,
-            'invoice'=> $invoice,
-            'orders'=>$orders,
-            'pelanggan'=>$pelanggan,
-            'pembayaran'=>$pembayaran,
-            'user'=> $user
-
-        ];
-
-        $output[] = $data;
-        }
-
+        $output = $this->detailData($master);
         return response()->json($output, 200);
     }
- 
-    public function store(Request $request){
-        $nomor_transaksi = $this->makeNomorTrx();
 
-        if($request->pembayaran['statusPembayaran']['value'] == 2){
-            $sisa_pembayaran = $request->invoice['grandTotal'];
-        }else if($request->pembayaran['statusPembayaran']['value'] == 1){
-            $sisa_pembayaran = (float)$request->invoice['grandTotal'] - (float)$request->pembayaran['downPayment'];
+    public function detailData($master){ // DETAIL DATA
+        $output = [];
+        foreach ($master as $key => $value) {
+            $invoice = [
+                'diskon'=>$value->diskon,
+                'grandTotal'=>$value->grand_total,
+                'ongkir'=>$value->ongkir,
+                'pajak'=>$value->pajak_keluaran,
+                'total'=>$value->total,
+            ];
+    
+            $user = User::join('master_pegawai','users.pegawai_id','=','master_pegawai.id')
+            ->where('users.id','=',$value->user_id)->first(['users.*', 'master_pegawai.nama_lengkap']);
+
+            $sales = Pegawai::where('id',$value->sales_id)->first();
+    
+            $orders = DB::table('detail_penjualan')
+            ->select('detail_penjualan.*', 'barang.nama as nama_barang')
+            ->join('barang','detail_penjualan.kode_barang_id','=','barang.kode_barang')    
+            ->where('master_penjualan_id','=',$value->id)    
+            ->get();
+    
+            $pelanggan = DB::table('master_kontak')
+            ->where('id','=',$value->kontak_id)
+            ->first();
+    
+            $bank = DB::table('master_bank')
+            ->where('id','=',$value->bank_id)
+            ->first();
+    
+            $pembayaran = [
+                'bank'=>$bank,
+                'downPayment'=>$value->down_payment,
+                'sisaPembayaran'=>$value->sisa_pembayaran,
+                'jenisPembayaran' => $this->caraPembayaran($value->cara_pembayaran),
+                'kredit'=>$value->kredit,
+                'statusPembayaran'=>$this->metodePembayaran($value->metode_pembayaran),
+                'tanggalJatuhTempo'=>$value->tanggal_jatuh_tempo,
+            ];
+    
+            $data = [
+                'id'=>$value->id,
+                'retur'=>$value->retur,
+                'nomorTransaksi'=>$value->nomor_transaksi,
+                'tanggalTransaksi'=>$value->created_at,
+                'nomorJurnal' => $value->nomor_jurnal,
+                'invoice'=> $invoice,
+                'orders'=>$orders,
+                'pelanggan'=>$pelanggan,
+                'pembayaran'=>$pembayaran,
+                'user'=> $user,
+                'sales'=>$sales
+    
+            ];
+    
+            $output[] = $data;
+            }
+
+            return $output;
+    }
+ 
+    public function store(Request $payload){
+        $nomor_transaksi = $this->makeNomorTrx();
+        if($payload->pembayaran['statusPembayaran']['value'] == 2){
+            $sisa_pembayaran = $payload->invoice['grandTotal'];
+        }else if($payload->pembayaran['statusPembayaran']['value'] == 1){
+            $sisa_pembayaran = (float)$payload->invoice['grandTotal'] - (float)$payload->pembayaran['downPayment'];
         }else{
             $sisa_pembayaran = 0;
         }
+        // POSTING JURNAL
+        $jurnalPenjualan = $this->postJurnalPenjualan($payload, $sisa_pembayaran, $nomor_transaksi);
+        // $jurnalPenjualan['nomor_jurnal'] = 11111;
+        // JIKA SUKSES LANJUT
+        if($jurnalPenjualan['nomor_jurnal']){
+            $data = TransaksiPenjualan::create([
+                'nomor_transaksi'=> $nomor_transaksi,
+                'kontak_id' => $this->cekPelanggan($payload->pelanggan),
+                'total' => $payload->invoice['total'],
+                'diskon' => $payload->invoice['diskon'],
+                'ongkir' => $payload->invoice['ongkir'],
+                'pajak_keluaran' => $payload->invoice['pajak'],
+                'grand_total' => $payload->invoice['grandTotal'],
+                'metode_pembayaran' => $payload->pembayaran['statusPembayaran']['title'],
+                'kredit' => $payload->pembayaran['kredit'],
+                'down_payment' => $payload->pembayaran['downPayment'],
+                'sisa_pembayaran' => $sisa_pembayaran,
+                'cara_pembayaran' => $payload->pembayaran['jenisPembayaran']['title'],
+                'bank_id' => $payload->pembayaran['bank'] ? $payload->pembayaran['bank']['value'] : null,
+                'tanggal_jatuh_tempo' => $payload->pembayaran['tanggalJatuhTempo'],
+                'retur' => 2,
+                'sales_id' => $payload->sales['value'],
+                'user_id' => $payload->user['id'],
+                'cabang_id'=>$payload->user['cabang']['id'],
+                'nomor_jurnal'=> $jurnalPenjualan['nomor_jurnal'],
+            ]);
+            $id = $data->id;
+            // $id = 5;
 
-        $data = TransaksiPenjualan::create([
-            'nomor_transaksi'=> $nomor_transaksi,
-            'kontak_id' => $this->cekPelanggan($request->pelanggan),
-            'total' => $request->invoice['total'],
-            'diskon' => $request->invoice['diskon'],
-            'ongkir' => $request->invoice['ongkir'],
-            'pajak_keluaran' => $request->invoice['pajak'],
-            'grand_total' => $request->invoice['grandTotal'],
-            'metode_pembayaran' => $request->pembayaran['statusPembayaran']['title'],
-            'kredit' => $request->pembayaran['kredit'],
-            'down_payment' => $request->pembayaran['downPayment'],
-            'sisa_pembayaran' => $sisa_pembayaran,
-            'cara_pembayaran' => $request->pembayaran['jenisPembayaran']['title'],
-            'bank_id' => $request->pembayaran['bank'] ? $request->pembayaran['bank']['value'] : null,
-            'tanggal_jatuh_tempo' => $request->pembayaran['tanggalJatuhTempo'],
-            'retur' => 2,
-            'user_id' => 1,
-        ]);
-        $id = $data->id;
-        if($id){
-            foreach ($request->orders as $key => $value) {
-                $detail = DetailPenjualan::create([
-                    'master_penjualan_id'=> $id,
-                    'kode_barang_id' => $value['kode_barang'],
-                    'jumlah' => $value['jumlah'],
-                    'harga' => $value['harga'],
-                    'diskon' => $value['diskon'],
-                    'total' => ($value['jumlah'] * $value['harga']) - $value['diskon'],
-                ]);
+            if($id){
+                $hargaPokokPenjualan = 0;
+                foreach ($payload->orders as $key => $value) {
+                    $detail = DetailPenjualan::create([
+                        'master_penjualan_id'=> $id,
+                        'kode_barang_id' => $value['kode_barang'],
+                        'jumlah' => $value['jumlah'],
+                        'harga' => $value['harga'],
+                        'diskon' => $value['diskon'],
+                        'total' => ($value['jumlah'] * $value['harga']) - $value['diskon'],
+                    ]);
+                    $hargaPokokPenjualan += $this->kreditPersediaan($value, $payload, $nomor_transaksi);
+                }
             }
-        }
-        $this->postJurnal(
-            $nomor_transaksi,
-            'PENJUALAN NOMOR INVOICE #'.$nomor_transaksi,
-            $request->invoice['total'],
-            $request->invoice['pajak'],
-            $request->invoice['ongkir'],
-            $request->invoice['diskon'],
-            $request->pembayaran['kredit'],
-            $request->pembayaran['downPayment'],
-            $sisa_pembayaran,
-        );
 
-        return response()->json($data, 200);
+            // POST JURNAL HPP
+            $jurnalHPP = $this->postJurnalHpp($payload, $hargaPokokPenjualan,$jurnalPenjualan['nomor_jurnal'], $nomor_transaksi);
+        }
+        // $data = '';
+        // $data->jurnal = $jurnal;
+        return response()->json($jurnalHPP, 200);
     }
 
-    
-    public function getDetailTransaksiByBarang($kode_barang){
-        $master = DB::table('detail_penjualan')
-        ->select('detail_penjualan.*', 'master_penjualan.nomor_transaksi as nomor_transaksi','master_penjualan.sisa_pembayaran','master_kontak.nama as nama_pelanggan')
-        ->where('kode_barang_id','=',$kode_barang)    
-        ->join('master_penjualan','detail_penjualan.master_penjualan_id','=','master_penjualan.id')    
-        ->join('master_kontak','master_penjualan.kontak_id','=','master_kontak.id')    
-        ->get();
+    public function destroy($id){
+        $output = [];
+        $master = TransaksiPenjualan::findOrFail($id);
+        $master->delete();
+        // DETAIL PENJUALAN
+        $detail = DetailPenjualan::where('master_penjualan_id', $master->id)->get();
+        foreach ($detail as $key => $value) {
+           $dd = DetailPenjualan::findOrFail($value->id);
+           $dd->delete();
+        }
+        // PERSEDIAAN
+        $persediaan = KartuPersediaan::where('nomor_transaksi', $master->nomor_transaksi)->get();
+        foreach ($persediaan as $key => $value) {
+            $dd = KartuPersediaan::findOrFail($value->id);
+            $dd->delete();
+        }
+        // JURNAL
+        $output['master'] = $master;
+        $output['detail'] = $detail;
+        $output['persediaan'] = $persediaan;
+        $output['jurnal'] = $master->nomor_jurnal;
+        return response()->json($output, 200);
 
-        return response()->json($master, 200);
+        // BAGIAN JURNAL LANGSUNG API DI FRONTEND VUE NYA
+        // NGGA VIA LARAVEL YG INI
+
+    }
+
+    public function retur(Request $payload){
+        $output = [];
+        $newpersediaan = [];
+        $master = TransaksiPenjualan::findOrFail($payload->id);
+        $master->retur = 'Iya';
+        $master->save();
+
+        // PERSEDIAAN
+        $persediaan = KartuPersediaan::where('nomor_transaksi', $master->nomor_transaksi)->get();
+        foreach ($persediaan as $key => $value) {
+            $jenis = 'DEBIT';
+            if($value->jenis == 'DEBIT'){
+                $jenis = 'KREDIT';
+            }
+            $dd = KartuPersediaan::create([
+                'nomor_transaksi'=> $value->nomor_transaksi,
+                'master_barang_id' => $value->master_barang_id,
+                'jenis' => $jenis,
+                'jumlah' => $value->jumlah,
+                'harga' => $value->harga,
+                'catatan' => 'RETUR '.$value->catatan,
+                'user_id' => $value->user_id,
+                'cabang_id'=>$value->cabang_id,
+                'created_at' =>$value->created_at,
+                'updated_at' =>$value->updated_at,
+            ]);
+            $newpersediaan[] = $dd;
+        }
+        // JURNAL
+        $output['master'] = $master;
+        $output['persediaan'] = $newpersediaan;
+        $output['jurnal'] = $master->nomor_jurnal;
+        return response()->json($output, 200);
+
+    }
+    
+    // JURNAL PENJUALAN
+    public function postJurnalPenjualan($payload, $sisa_pembayaran = 0, $nomor_transaksi){
+        $jurnal = [];
+        $catatan = 'PENJUALAN NOMOR TRANSAKSI #'. $nomor_transaksi;
+        $piutang = $payload->pembayaran['kredit'];
+        $dp =  $payload->pembayaran['downPayment'];
+        $sisa_pembayaran= $sisa_pembayaran;
+        $kas = $payload->invoice['total'] + $payload->invoice['pajak'] +$payload->invoice['ongkir'];
+
+        if($piutang == false){
+            $kas = array(
+                'akunId'=> $payload->user['akun']['id'], // KAS KECIL KASIR
+                'namaJenis'=> 'DEBIT',
+                'saldo'=>$kas,
+                'catatan'=>'KAS MASUK '. $catatan,
+            );
+            $jurnal['kas'] = $kas;
+        }else{
+            if($dp !== 0){
+                $kas = array(
+                    'akunId'=> $payload->user['akun']['id'], // KAS KECIL KASIR
+                    'namaJenis'=>'DEBIT',
+                    'saldo'=>$dp,
+                    'catatan'=>'DOWN PAYMENT '. $catatan,
+                );
+            $jurnal['kas'] = $kas;
+            }
+            $piutang = array(
+                'akunId'=>'5', // PIUTANG DAGANG
+                'namaJenis'=>'DEBIT',
+                'saldo'=>$sisa_pembayaran,
+                'catatan'=>'PIUTANG '. $catatan,
+            );
+            $jurnal['piutang'] = $piutang;
+        }
+        $penjualan = array(
+            'akunId'=>'32', // PENJUALAN
+            'namaJenis'=>'KREDIT',
+            'saldo'=>$payload->invoice['total'],
+            'catatan'=> $catatan,
+        );
+        $jurnal['penjualan'] = $penjualan;
+
+        if($payload->invoice['pajak'] !== 0){
+            $pajak = array(
+                'akunId'=>'26', // PAJAK KELUARAN
+                'namaJenis'=>'KREDIT',
+                'saldo'=>$payload->invoice['pajak'],
+                'catatan'=>'PAJAK KELUARAN '. $catatan,
+            );
+            $jurnal['pajak'] = $pajak;
+        }
+        if($payload->invoice['ongkir']  !== 0){
+            $ongkir = array(
+                'akunId'=>'33', // PAJAK KELUARAN
+                'namaJenis'=>'KREDIT',
+                'saldo'=>$payload->invoice['ongkir'],
+                'catatan'=>'ONGKIR '. $catatan,
+            );
+            $jurnal['ongkir'] = $ongkir;
+        }
+        if($payload->invoice['diskon'] !== 0){
+            $diskon = array(
+                'akunId'=>'35', // PAJAK KELUARAN
+                'namaJenis'=>'DEBIT',
+                'saldo'=>$payload->invoice['diskon'],
+                'catatan'=>'DISKON '. $catatan,
+            );
+            $jurnal['diskon'] = $diskon;
+        }
+        $post = [
+            'catatan' => $catatan,
+            'tanggalTransaksi'=>  date("Y-m-d h:i:s"),
+            'user_id' => $payload->user['id'],
+            'cabang_id'=>$payload->user['cabang']['id'],
+            'jurnal'=> $jurnal
+        ];
+
+        $output = Http::post('http://127.0.0.1:8080/api/jurnal/store/', $post);
+
+        return $output->json();
+    }
+
+    // JURNAL HPP
+    public function postJurnalHpp($payload, $hargaPokokPenjualan, $nomor_jurnal, $nomor_transaksi){
+        $jurnal = [];
+        $catatan = 'PENJUALAN NOMOR TRANSAKSI #'. $nomor_transaksi;
+
+        $hpp = array(
+            'akunId'=> '44', // HPP
+            'namaJenis'=> 'DEBIT',
+            'saldo'=>$hargaPokokPenjualan,
+            'catatan'=>$catatan,
+         );
+        $jurnal['hpp'] = $hpp;
+
+        $persediaan = array(
+            'akunId'=>'6', // PERSEDIAAN
+            'namaJenis'=>'KREDIT',
+            'saldo'=>$hargaPokokPenjualan,
+            'catatan'=> $catatan,
+        );
+        $jurnal['persediaan'] = $persediaan;
+
+        $post = [
+            'nomor_jurnal' => $nomor_jurnal,
+            'catatan' => $catatan,
+            'tanggalTransaksi'=>  date("Y-m-d h:i:s"),
+            'user_id' => $payload->user['id'],
+            'cabang_id'=>$payload->user['cabang']['id'],
+            'jurnal'=> $jurnal
+        ];
+
+        $output = Http::post('http://127.0.0.1:8080/api/jurnal/store/', $post);
+
+        return $output->json();
+    }
+    
+
+    public function kreditPersediaan($data, $payload, $nomor_transaksi){
+
+
+        $qty = $data['jumlah'];
+        $hpp = 0;
+        $harga_modal = $data['modal'];
+
+        // CEK FIFO ATAU AVERAGE
+        if($data['jenis'] == 'FIFO'){
+            $barang = KartuPersediaan::where('master_barang_id', $data['id_barang'])
+                                            ->where('jenis','=','DEBIT')
+                                            ->whereBetween('created_at', [date("Y-01-01 00:00:01"), date("Y-12-31 23:59:59")])
+                                            ->where('cabang_id','=', $payload->user['cabang']['id'])
+                                            ->orderBy('created_at', 'desc')
+                                            ->limit(3);
+            $persediaan = $barang->first();
+            $count = $barang->count();
+            if($count < 1){
+                $hpp += $qty * $harga_modal;
+            }else{
+                $harga_modal = $persediaan->harga;
+                $hpp += $qty * $harga_modal;
+            }
+        }else{
+            $harga =  KartuPersediaan::where('master_barang_id', $data['id_barang'])
+                                        ->where('jenis','=','DEBIT')
+                                        ->whereBetween('created_at', [date("Y-01-01 00:00:01"), date("Y-12-31 23:59:59")])
+                                        ->where('cabang_id','=', $payload->user['cabang']['id'])
+                                        ->limit(5)
+                                        ->avg('harga');
+            $harga_modal = $harga;
+            $hpp += $qty * $harga_modal;
+        }
+
+        $detail = KartuPersediaan::create([
+            'nomor_transaksi'=> $nomor_transaksi,
+            'master_barang_id' => $data['id_barang'],
+            'jenis' => 'KREDIT',
+            'jumlah' => $qty,
+            'harga' => round($harga_modal, 0),
+            'catatan' => 'PENJUALAN BARANG NOMOR TRANSAKSI #'. $nomor_transaksi,
+            'user_id' => $payload->user['id'],
+            'cabang_id'=>$payload->user['cabang']['id'],
+        ]);
+
+        return round($hpp, 0); // RETURN HARGA POKOK PENJUALAN
+    }
+
+
+    
+    public function getDetailTransaksiByBarang($kode_barang, $cabang){
+        $master = DB::table('detail_penjualan')
+        ->select('master_penjualan.*')
+        ->where('kode_barang_id','=',$kode_barang)    
+        ->where('cabang_id', $cabang == 0 ? '!=' : '=', $cabang)
+        ->join('master_penjualan','detail_penjualan.master_penjualan_id','=','master_penjualan.id')    
+        ->get(); 
+
+        $output = $this->detailData($master);
+        return response()->json($output, 200);
     }
 
     //  FUNGSI STANDARD
@@ -218,93 +470,4 @@ class TransaksiPenjualanController extends Controller
     }
 
 
-    // JURNAL
-    
-    public function postJurnal($nomor_transaksi,$keterangan, $penjualan, $pajak = 0, $ongkir = 0, $diskon = 0, $piutang = false, $dp=0, $sisa_pembayaran=0){
-        $reqJurnal = Http::get('http://127.0.0.1:8080/api/jurnal/reqnomorjurnal');
-        $nomorJurnal = $reqJurnal->json();
-        $kas = $penjualan + $pajak + $ongkir;
-        if($piutang == false){
-            $kas = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
-                'reff'=>$nomor_transaksi,
-                'nomor_jurnal'=>$nomorJurnal,
-                'master_akun_id'=>'3', // KAS
-                'nominal'=>$kas,
-                'jenis'=>'DEBIT',
-                'keterangan'=>'PENERIMAAN KAS '. $keterangan,
-            ]);
-            $response['kas'] = $kas->json();
-
-        }else{
-            if($dp !== 0){
-                $kas = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
-                    'reff'=>$nomor_transaksi,
-                    'nomor_jurnal'=>$nomorJurnal,
-                    'master_akun_id'=>'3', // KAS
-                    'nominal'=>$dp,
-                    'jenis'=>'DEBIT',
-                    'keterangan'=>'PENERIMAAN KAS DOWN PAYMENT '. $keterangan,
-                ]);
-                $response['kas'] = $kas->json();
-
-            }
-            $piutang = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
-                'reff'=>$nomor_transaksi,
-                'nomor_jurnal'=>$nomorJurnal,
-                'master_akun_id'=>'5', // PIUTANG DAGANG
-                'nominal'=>$sisa_pembayaran,
-                'jenis'=>'DEBIT',
-                'keterangan'=>'PIUTANG '. $keterangan,
-            ]);
-            $response['piutang'] = $piutang->json();
-
-        }
-
-        $penjualan = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
-            'reff'=>$nomor_transaksi,
-            'nomor_jurnal'=>$nomorJurnal,
-            'master_akun_id'=>'32', // PENJUALAN
-            'nominal'=>$penjualan,
-            'jenis'=>'KREDIT',
-            'keterangan'=>$keterangan,
-        ]);
-        $response['penjualan'] = $penjualan->json();
-
-
-        if($pajak !== 0){
-            $pajak = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
-                'reff'=>$nomor_transaksi,
-                'nomor_jurnal'=>$nomorJurnal,
-                'master_akun_id'=>'26', // PAJAK KELUARAN
-                'nominal'=>$pajak,
-                'jenis'=>'KREDIT',
-                'keterangan'=>'PAJAK KELUARAN '. $keterangan,
-            ]);
-            $response['pajak'] = $pajak->json();
-        }
-        if($ongkir !== 0){
-            $ongkir = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
-                'reff'=>$nomor_transaksi,
-                'nomor_jurnal'=>$nomorJurnal,
-                'master_akun_id'=>'33', // AKUN PENDAPATAN LAIN LAIN
-                'nominal'=>$ongkir,
-                'jenis'=>'KREDIT',
-                'keterangan'=>'ONGKIR '. $keterangan,
-            ]);
-            $response['ongkir'] = $ongkir->json();
-        }
-        if($diskon !== 0){
-            $diskon = Http::post('http://127.0.0.1:8080/api/jurnal/store/', [
-                'reff'=>$nomor_transaksi,
-                'nomor_jurnal'=>$nomorJurnal,
-                'master_akun_id'=>'35', // AKUN DISKON PENJUALAN
-                'nominal'=>$diskon,
-                'jenis'=>'DEBIT',
-                'keterangan'=>'DISKON '. $keterangan,
-            ]);
-            $response['diskon'] = $diskon->json();
-        }
-
-        return response()->json($response, 200);
-    }
 }

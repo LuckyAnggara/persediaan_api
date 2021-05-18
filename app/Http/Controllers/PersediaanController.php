@@ -4,9 +4,12 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 use App\Models\Barang;
-use App\Models\Persediaan;
+use App\Models\KartuPersediaan;
+use App\Models\Opname;
+use App\Models\DetailOpname;
 
 class PersediaanController extends Controller
 {
@@ -23,68 +26,66 @@ class PersediaanController extends Controller
 
         
         foreach ($data as $key => $value) {
-            $persediaan = DB::table('kartu_persediaan')
-            ->select(
-                DB::raw('SUM(debit) as saldo_masuk, SUM(kredit) as saldo_keluar'),
-                )
-            ->where('master_barang_id', '=',$value->id)
-            ->first();
 
-            $persediaan->saldo = $persediaan->saldo_masuk - $persediaan->saldo_keluar;
-            
-            if($value->jenis == 'FIFO'){
-                $harga_perolehan = DB::table('detail_pembelian')
-                ->select('harga')
-                ->where('kode_barang_id', '=',$value->kode_barang)
-                ->orderBy('created_at', 'asc')
-                ->first();
-            }else{
-                $harga_perolehan = DB::table('detail_pembelian')
-                ->select(DB::raw('round(AVG(harga),0) as harga'),)
-                ->where('kode_barang_id', '=',$value->kode_barang)
-                ->first();
-            }
-          
-            if($harga_perolehan){
-                $saldo = $persediaan->saldo;
-                $persediaan->harga = $harga_perolehan->harga;
-                $persediaan->jenis = $value->jenis;
-                $persediaan->total = $saldo * $harga_perolehan->harga;
-            }
-            
-            $value->persediaan = $persediaan;
+            $saldo_masuk = DB::table('kartu_persediaan')
+            ->where('master_barang_id', '=',$value->id)
+            ->where('deleted_at')
+            ->where('jenis', '=','DEBIT')
+            ->sum('jumlah');
+
+            $saldo_keluar = DB::table('kartu_persediaan')
+            ->where('master_barang_id', '=',$value->id)
+            ->where('deleted_at')
+            ->where('jenis', '=','KREDIT')
+            ->sum('jumlah');
+
+            $value->persediaan['saldo'] = $saldo_masuk - $saldo_keluar;
+            $value->persediaan['saldo_masuk'] = $saldo_masuk;
+            $value->persediaan['saldo_keluar'] = $saldo_keluar;
             $output[] = $value;
         }
+        return response()->json($output, 200);
+    }
+
+    public function daftarPenyesuaian($cabang){
+
+        $data = Opname::where('cabang_id', $cabang)->get();
+        $output = [];
+        foreach ($data as $key => $value) {
+            $detailData = DetailOpname::where('master_opname_id', $value->id)->get();
+            foreach ($detailData as $key => $data) {
+                $barang = Barang::where('id',$data->master_barang_id)->first();
+                $data->nama = $barang->nama;
+                $data->kode_barang = $barang->kode_barang;
+                $detail[] = $data;
+            }
+            $value->detail = $detail;
+            $output[] = $value;
+        }
+
         return response()->json($output, 200);
     }
 
     public function show($id){
       
         $persediaan =[];
+        $saldo = 0;
         try{
-            // $barang = Barang::findOrFail($id);
-            // $barang = DB::table('barang')
-            // ->join('jenis_barang', 'barang.jenis_id', '=', 'jenis_barang.id')
-            // ->join('merek_barang', 'barang.merek_id', '=', 'merek_barang.id')
-            // ->join('gudang', 'barang.gudang_id', '=', 'gudang.id')
-            // ->select('barang.*', 'gudang.nama as nama_gudang','jenis_barang.nama as nama_jenis', 'merek_barang.nama as nama_merek')
-            // ->where('barang.id', '=',$id)
-            // ->first();
-            
-            $data = DB::table('master_persediaan')
+            $data = DB::table('kartu_persediaan')
             ->select('*')
-            ->where('kode_barang_id', '=',$id)
-            ->orderBy('id', 'desc')
+            ->where('deleted_at')
+            ->where('master_barang_id', '=',$id)
+            ->orderBy('id', 'asc')
             ->get();
-
             foreach ($data as $key => $value) {
-                $master_penjualan = DB::table('master_penjualan')
-                ->select('*')
-                ->where('id', '=',$value->master_penjualan_id)
-                ->orderBy('id', 'desc')
-                ->first();
-                $value->master_penjualan = $master_penjualan;
-                $persediaan[] = $value;
+                if($value->jenis == 'DEBIT'){
+                    $saldo += $value->jumlah; 
+                } else if($value->jenis == 'KREDIT'){
+                    $saldo -= $value->jumlah; 
+                }
+                $value->saldo =$saldo;
+                $persediaan[$key] = $value;
+
             }
             
             $response = $persediaan;
@@ -101,5 +102,134 @@ class PersediaanController extends Controller
         }
 
         return response()->json($response, 200);
+    }
+
+
+    public function store(Request $payload){
+            $saldo = 0;
+            $persediaan = [];
+
+            // MEMBUAT NOMOR OPNAME
+            $data = Opname::groupBy('nomor_opname')->get(); // CEK DATA NOMOR OPNAME DENGAN GROUPING
+            $prefix = date("ymd"); // PREFIX AWALAN PAKE TANGGAL TAHUN-BULAN-TANGGAL (EX 210422)
+            $output = $data->count(); // DATA DIHITUNG 
+            $output++; // DATA DITAMBAH 1
+            $nomor_opname ='OPNAME#'.$prefix.$output;
+            // END MEMBUAT NOMOR OPNAME
+
+            $master = Opname::create([
+                'nomor_opname'=> $nomor_opname,
+                'catatan' => $payload->catatan,
+                'tipe' => $payload->tipe['value'],
+                'kategori' => $payload->kategori['value'],
+                'user_id' => $payload->user['id'],
+                'cabang_id'=>$payload->user['cabang']['id'],
+                'created_at' =>$payload->tanggalTransaksi,
+                'updated_at' =>$payload->tanggalTransaksi,
+            ]);
+
+            if($master->id){
+                foreach ($payload->data as $key => $value) {
+
+                    $total = $value['perbedaan'] * $value['harga'];
+                    $saldo += $total;
+                    $jenis = 'KREDIT';
+    
+                    if($value['perbedaan'] == 0){
+                        continue;
+                    }
+                    if($value['perbedaan'] > 0){
+                        $jenis = 'DEBIT';
+                    }
+                    $catatan = 'OPNAME#'.$value['tanggalTransaksi'];
+                    $data = KartuPersediaan::create([
+                        'nomor_transaksi'=> $catatan,
+                        'master_barang_id' => $value['id'],
+                        'jenis' => $jenis,
+                        'jumlah' => abs($value['perbedaan']),
+                        'harga' => round($value['harga'], 0),
+                        'catatan' => 'PENYESUAIAN #TGL'.$value['tanggalTransaksi'],
+                        'user_id' => $payload->user['id'],
+                        'cabang_id'=>$payload->user['cabang']['id'],
+                        'created_at' =>$value['tanggalTransaksi'],
+                        'updated_at' =>$value['tanggalTransaksi'],
+                    ]);
+
+                    $detail = DetailOpname::create([
+                        'master_opname_id'=> $master->id,
+                        'master_barang_id'=> $value['id'],
+                        'jumlah_tercatat'=> $value['jumlah_tercatat'],
+                        'jumlah_fisik'=> $value['jumlah_fisik'],
+                        'perbedaan'=> $value['perbedaan'],
+                        'harga'=> $value['harga'],
+                        'user_id' => $payload->user['id'],
+                        'cabang_id'=>$payload->user['cabang']['id'],
+                        'created_at' =>$value['tanggalTransaksi'],
+                        'updated_at' =>$value['tanggalTransaksi'],
+                    ]);
+    
+                    $persediaan[] = $data;
+                }
+    
+                $jurnal = $this->postJurnalPersediaan($payload, $saldo, $catatan);
+                $persediaan['jurnal'] = $jurnal;
+                return response()->json($persediaan, 200);
+            }
+
+            return response()->json('ERROR', 201);
+
+           
+    }
+
+    function postJurnalPersediaan($payload, $saldo, $catatan){
+        $jenisPersediaan = 'DEBIT';
+        $jenisHpp = 'KREDIT';
+        if($saldo < 0){
+            $jenisPersediaan = 'KREDIT';
+            $jenisHpp = 'DEBIT';
+        }
+        
+        $persediaan = array(
+            'akunId'=>'6', // PIUTANG DAGANG
+            'namaJenis'=>$jenisPersediaan,
+            'saldo'=> abs($saldo),
+            'catatan'=> $catatan,
+        );
+        $jurnal['persediaan'] = $persediaan;
+
+        $hpp = array(
+            'akunId'=>'44', // PIUTANG DAGANG
+            'namaJenis'=>$jenisHpp,
+            'saldo'=> abs($saldo),
+            'catatan'=> $catatan,
+        );
+        $jurnal['hpp'] = $hpp;
+
+        $post = [
+            'nomor_jurnal' => '',
+            'catatan' => $catatan,
+            'tanggalTransaksi'=>  date("Y-m-d h:i:s"),
+            'user_id' => $payload->user['id'],
+            'cabang_id'=>$payload->user['cabang']['id'],
+            'jurnal'=> $jurnal
+        ];
+
+        $output = Http::post('http://127.0.0.1:8080/api/jurnal/store/', $post);
+
+        return $output->json();
+
+    }
+
+    function cekSaldo($id){
+        $data = DB::table('kartu_persediaan')
+        ->select(
+            DB::raw('SUM(debit) as saldo_masuk, SUM(kredit) as saldo_keluar'),
+            )
+        ->where('master_barang_id','=',$id)    
+        ->where('saldo', '!=', 0)
+        ->where('master_jurnal.deleted_at')
+        ->first();
+        $saldo = $data->saldo_masuk - $data->saldo_keluar;
+        return $saldo;
     }
 }

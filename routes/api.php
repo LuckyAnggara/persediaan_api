@@ -53,8 +53,10 @@ Route::group(['prefix' => 'barang'], function () {
 // Persediaan
 Route::group(['prefix' => 'persediaan'], function () {
     //POST
+    Route::post('/store', 'PersediaanController@store');
     //GET
     Route::get('/', 'PersediaanController@index');
+    Route::get('/penyesuaian/cabang/{cabang_id}', 'PersediaanController@daftarPenyesuaian');
     Route::get('/{id}', 'PersediaanController@show');
     //DESTROY
     Route::delete('/{id}', 'BarangController@destroy');
@@ -82,19 +84,23 @@ Route::group(['prefix' => 'bank'], function () {
 Route::group(['prefix' => 'penjualan'], function () {
     //POST
     Route::post('/store', 'TransaksiPenjualanController@store');
-    Route::get('/store2', 'TransaksiPenjualanController@postJurnal');
+    Route::post('/retur', 'TransaksiPenjualanController@retur');
     //GET
-    Route::get('/{dd}/{ddd}', 'TransaksiPenjualanController@index');
-    Route::get('/detail/barang/{id}', 'TransaksiPenjualanController@getDetailTransaksiByBarang');
+    Route::get('/cabang/{cabang}/awal/{dd}/akhir/{ddd}', 'TransaksiPenjualanController@index');
+    Route::get('/detail/barang/{id}/cabang/{cabang}', 'TransaksiPenjualanController@getDetailTransaksiByBarang');
+    //DELETE
+    Route::delete('/delete/{id}', 'TransaksiPenjualanController@destroy');
 });
 
 // Transaksi Pembelian
 Route::group(['prefix' => 'pembelian'], function () {
     //POST
     Route::post('/store', 'TransaksiPembelianController@store');
-    Route::get('/store2', 'TransaksiPembelianController@postJurnal');
+    Route::post('/retur', 'TransaksiPembelianController@retur');
     //GET
     // Route::get('/', 'TransaksiPembelianController@index2');
-    Route::get('/{dd}/{ddd}', 'TransaksiPembelianController@index');
-    Route::get('/detail/barang/{id}', 'TransaksiPembelianController@getDetailTransaksiByBarang');
+    Route::get('/cabang/{cabang}/awal/{dd}/akhir/{ddd}', 'TransaksiPembelianController@index');
+    Route::get('/detail/barang/{id}/cabang/{cabang}', 'TransaksiPembelianController@getDetailTransaksiByBarang');
+    //DELETE
+    Route::delete('/delete/{id}', 'TransaksiPembelianController@destroy');
 });
