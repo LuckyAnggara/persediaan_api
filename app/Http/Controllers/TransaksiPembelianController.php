@@ -85,7 +85,7 @@ class TransaksiPembelianController extends Controller
     
             $output[] = $data;
             }
-
+            
             return $output;
     }
 
