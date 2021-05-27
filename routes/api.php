@@ -18,10 +18,11 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-// Cabang
+// AUTH
 Route::group(['prefix' => 'auth'], function () {
     //POST
     Route::post('/login', 'AuthController@login');
+    Route::get('/cek', 'TransaksiPenjualanController@index2');
 });
 
 // Cabang
@@ -85,6 +86,8 @@ Route::group(['prefix' => 'penjualan'], function () {
     //POST
     Route::post('/store', 'TransaksiPenjualanController@store');
     Route::post('/retur', 'TransaksiPenjualanController@retur');
+    //PUT
+    Route::put('/edit/{id}', 'TransaksiPenjualanController@update');
     //GET
     Route::get('/cabang/{cabang}/awal/{dd}/akhir/{ddd}', 'TransaksiPenjualanController@index');
     Route::get('/detail/barang/{id}/cabang/{cabang}', 'TransaksiPenjualanController@getDetailTransaksiByBarang');
@@ -103,4 +106,10 @@ Route::group(['prefix' => 'pembelian'], function () {
     Route::get('/detail/barang/{id}/cabang/{cabang}', 'TransaksiPembelianController@getDetailTransaksiByBarang');
     //DELETE
     Route::delete('/delete/{id}', 'TransaksiPembelianController@destroy');
+});
+
+// Kepegawaian
+Route::group(['prefix' => 'pegawai'], function () {
+    //GET
+    Route::get('/', 'PegawaiController@index');
 });

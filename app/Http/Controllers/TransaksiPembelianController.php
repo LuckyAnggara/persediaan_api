@@ -167,7 +167,7 @@ class TransaksiPembelianController extends Controller
                 'tanggal_jatuh_tempo' => $payload->pembayaran['tanggalJatuhTempo'],
                 'retur' => 2, // 1 IYA 2 TIDAK
                 'user_id' => $payload->user['id'],
-                'cabang_id'=>$payload->user['cabang']['id'],
+                'cabang_id'=>$payload->user['cabang_id'],
                 'nomor_jurnal'=> $jurnal['nomor_jurnal'],
                 'created_at'=> $payload->tanggalTransaksi,
                 'catatan'=> $payload->catatan,
@@ -332,11 +332,11 @@ class TransaksiPembelianController extends Controller
                 'catatan' => $catatan,
                 'tanggalTransaksi'=>  date("Y-m-d h:i:s"),
                 'user_id' => $payload->user['id'],
-                'cabang_id'=>$payload->user['cabang']['id'],
+                'cabang_id'=>$payload->user['cabang_id'],
                 'jurnal'=> $jurnal
             ];
             
-            $output = Http::post('http://127.0.0.1:8080/api/jurnal/store/', $post);
+            $output = Http::post(keuanganBaseUrl().'jurnal/store/', $post);
     
             return $output->json();
         }
@@ -364,7 +364,7 @@ class TransaksiPembelianController extends Controller
                 'harga' => $data['harga'],
                 'catatan' => 'PEMBELIAN BARANG NOMOR TRANSAKSI #'. $payload->nomorTransaksi,
                 'user_id' => $payload->user['id'],
-                'cabang_id'=>$payload->user['cabang']['id'],
+                'cabang_id'=>$payload->user['cabang_id'],
             ]);
         }
 }
