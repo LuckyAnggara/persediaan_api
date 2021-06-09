@@ -113,4 +113,7 @@ Route::group(['prefix' => 'pegawai'], function () {
     //GET
     Route::get('/', 'PegawaiController@index');
     Route::get('/presensi/{id}/bulan/{m}', 'PegawaiController@presensi');
+    Route::get('/jabatandivisicabang', 'PegawaiController@jabatandivisicabang');
+    //PUT
+    Route::put('/edit/{id}', 'PegawaiController@update');
 });

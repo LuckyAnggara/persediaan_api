@@ -39,27 +39,51 @@ class Kernel extends ConsoleKernel
                     'catatan'=> $cek
                 ]);
             }
+        })->everyMinute();
 
+        $schedule->call(function () {
+            $data = Presensi::where('tanggal',date("y-m-d"));
             $output = $data->get();
             foreach ($output as $key => $value) {
                 // CEK JAM MASUK
                 if($value->jam_masuk !== null){
                     $value->catatan = date("y-m-d h:i:s", strtotime($value->jam_masuk));
                         $value->save();
-                    if(date("y-m-d h:i:s", strtotime($value->jam_masuk)) >= date("y-m-d 07:00:00")){
+                    if(date("y-m-d h:i:s", strtotime($value->jam_masuk)) >= date("y-m-d 08:00:00")){
                         $value->catatan = 'Telat';
                         $value->save();
                     }else{
-                        $value->catatan =$value->jam_masuk >= time("07:00:00");
+                        $value->catatan = 'Belum Absen Pulang';
                         $value->save();
                     }
                 }else{
-                    $value->catatan = $value->jam_masuk;
+                    $value->catatan = 'Belum Absen Masuk';
                     $value->save();
                 }
             }
-
         })->everyMinute();
+
+        $schedule->call(function () {
+            $data = Presensi::where('tanggal',date("y-m-d"));
+            $output = $data->get();
+            foreach ($output as $key => $value) {
+                // CEK JAM MASUK
+                if($value->jam_keluar !== null){
+                    if(date("y-m-d h:i:s", strtotime($value->jam_keluar)) <= date("y-m-d 17:00:00")){
+                        $value->catatan = 'Sudah Absen Pulang';
+                        $value->save();
+                    }else{
+                        $value->catatan = 'Absen Pulang Sebelum Waktunya';
+                        $value->save();
+                    }
+                }else{
+                    $value->catatan = 'Belum Absen Pulang';
+                    $value->save();
+                }
+            }
+        })->everyMinute();
+
+        
         // // >timezone('Asia/Jakarta')->at('04:00');
         // $schedule->call(function () {
 
