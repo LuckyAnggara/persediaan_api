@@ -112,4 +112,5 @@ Route::group(['prefix' => 'pembelian'], function () {
 Route::group(['prefix' => 'pegawai'], function () {
     //GET
     Route::get('/', 'PegawaiController@index');
+    Route::get('/presensi/{id}/bulan/{m}', 'PegawaiController@presensi');
 });

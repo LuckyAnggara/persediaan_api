@@ -7,21 +7,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Carbon\Carbon;
 
-class Pegawai extends Model
+class Presensi extends Model
 {
-
     use HasFactory;
     use SoftDeletes;
  
-    protected $table = 'master_pegawai';
+    protected $table = 'master_presensi';
     protected $guarded = [
         'id',
     ];
-
-    public function getAgeAttribute($value)
-    {
-         return Carbon::parse($this->tanggal_masuk)->diff();
-    }
-
 }
-

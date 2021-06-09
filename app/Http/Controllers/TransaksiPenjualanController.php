@@ -39,12 +39,12 @@ class TransaksiPenjualanController extends Controller
                 'diskon'=>$value->diskon,
                 'grandTotal'=>$value->grand_total,
                 'ongkir'=>$value->ongkir,
-                'pajak'=>$value->pajak_keluaran,
+                'pajak'=>$value->pajak_keluaran,    
                 'total'=>$value->total,
             ];
     
             $user = User::join('master_pegawai','users.pegawai_id','=','master_pegawai.id')
-            ->where('users.id','=',$value->user_id)->first(['users.*', 'master_pegawai.nama_lengkap']);
+            ->where('users.id','=',$value->user_id)->first(['users.*', 'master_pegawai.nama']);
 
             $sales = Pegawai::where('id',$value->sales_id)->first();
     
