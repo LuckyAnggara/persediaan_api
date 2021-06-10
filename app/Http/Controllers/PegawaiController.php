@@ -60,21 +60,22 @@ class PegawaiController extends Controller
     public function store(Request $payload){
 
         $data = Pegawai::create([
-            'ktp'=> $kode_barang,
+            'ktp'=> $payload->ktp,
             'nama' => $payload->nama,
-            'jenis_kelamin' => $payload->jenis_id,
-            'alamat' => $payload->merek_id,
-            'kelurahan' => $payload->gudang_id,
-            'kecamatan' => $payload->rak,
-            'kota' => $payload->catatan,
-            'tanggal_lahir' => $payload->catatan,
-            'tanggal_masuk' => $payload->catatan,
-            'pendidikan_terkahir' => $payload->catatan,
-            'nomor_telepon' => $payload->catatan,
-            'nomor_rekening' => $payload->catatan,
-            'npwp' => $payload->catatan,
-            'divisi_id' => $payload->catatan,
-            'jabatan_id' => $payload->catatan,
+            'jenis_kelamin' => $payload->jenis_kelamin,
+            'alamat' => $payload->alamat,
+            'kelurahan' => $payload->kelurahan,
+            'kecamatan' => $payload->kecamatan,
+            'kota' => $payload->kota,
+            'tanggal_lahir' => $payload->tanggal_lahir,
+            'tanggal_masuk' => $payload->tanggal_masuk,
+            'pendidikan_terakhir' => $payload->pendidikan_terakhir,
+            'nomor_telepon' => $payload->nomor_telepon,
+            'nomor_rekening' => $payload->nomor_rekening,
+            'npwp' => $payload->npwp,
+            'divisi_id' => $payload->divisi_id,
+            'jabatan_id' => $payload->jabatan_id,
+            'cabang_id' => $payload->cabang_id,
         ]);
         return response()->json($data, 200);
     }
