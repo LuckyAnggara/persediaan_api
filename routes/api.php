@@ -116,4 +116,6 @@ Route::group(['prefix' => 'pegawai'], function () {
     Route::get('/jabatandivisicabang', 'PegawaiController@jabatandivisicabang');
     //PUT
     Route::put('/edit/{id}', 'PegawaiController@update');
+     //POST
+     Route::post('/store', 'PegawaiController@store');
 });
