@@ -119,3 +119,14 @@ Route::group(['prefix' => 'pegawai'], function () {
      //POST
      Route::post('/store', 'PegawaiController@store');
 });
+
+// Presensi
+Route::group(['prefix' => 'presensi'], function () {
+    //GET
+    Route::get('/{date}', 'PresensiController@index');
+    Route::get('/{id}/bulan/{m}', 'PresensiController@presensiPegawai');
+     //POST
+     Route::put('/store/masuk/', 'PresensiController@storeMasuk');
+     Route::get('/store/keluar/{id}', 'PresensiController@storeKeluar');
+});
+
