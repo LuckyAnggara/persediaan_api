@@ -210,7 +210,7 @@ class PersediaanController extends Controller
             'catatan' => $catatan,
             'tanggalTransaksi'=>  date("Y-m-d h:i:s"),
             'user_id' => $payload->user['id'],
-            'cabang_id'=>$payload->user['cabang']['id'],
+            'cabang_id'=>$payload->user['cabang_id'],
             'jurnal'=> $jurnal
         ];
 

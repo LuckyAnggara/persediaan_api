@@ -15,7 +15,8 @@ class BankController extends Controller
         foreach ($output as $key => $value) {
             $data = [
                 'value'=> $value['id'],
-                'title'=> $value['nama_bank']. ' - ' . $value['nomor_rekening']
+                'title'=> $value['nama_bank']. ' - ' . $value['nomor_rekening'],
+                'kode_akun_id'=> $value['kode_akun_id']
             ];
             $bank[] = $data;
         }

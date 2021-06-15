@@ -41,7 +41,7 @@ class AuthController extends Controller
         return response()->json($response, $code);
     }
 
-    public function setData(){
-    
+    public function logout(){
+        return keuanganBaseUrl();
     }
 }

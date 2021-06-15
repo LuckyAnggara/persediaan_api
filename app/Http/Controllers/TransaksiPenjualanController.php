@@ -12,6 +12,7 @@ use App\Models\DetailPenjualan;
 use App\Models\User;
 use App\Models\KartuPersediaan;
 use App\Models\Pegawai;
+use App\Models\Pembayaran;
 
 
 
@@ -21,12 +22,17 @@ class TransaksiPenjualanController extends Controller
         $output = [];
         $dateawal = date("Y-m-d 00:00:01", strtotime($dd));
         $dateakhir = date("Y-m-d 23:59:59", strtotime($ddd));
-        $master = DB::table('master_penjualan')
-        ->where('created_at','>',$dateawal)    
-        ->where('created_at','<',$dateakhir)
+        $data = DB::table('master_penjualan')
+        // ->where('created_at','>',$dateawal)    
+        // ->where('created_at','<',$dateakhir)
         ->where('cabang_id', $cabang == 0 ? '!=' : '=', $cabang)    
-        ->where('deleted_at')    
-        ->get();
+        ->where('deleted_at');
+        if($dd == "null" && $ddd == "null"){
+            $master = $data->get();
+        }else{
+            $master = $data->whereBetween('created_at', [$dateawal, $dateakhir])->get();
+        }
+        
 
         $output = $this->detailData($master);
         return response()->json($output, 200);
@@ -71,6 +77,7 @@ class TransaksiPenjualanController extends Controller
                 'kredit'=>$value->kredit,
                 'statusPembayaran'=>$this->metodePembayaran($value->metode_pembayaran),
                 'tanggalJatuhTempo'=>$value->tanggal_jatuh_tempo,
+                'status'=>$value->sisa_pembayaran == 0 ? 'LUNAS' : 'BELUM LUNAS',
             ];
     
             $data = [
@@ -105,8 +112,8 @@ class TransaksiPenjualanController extends Controller
         }
         // POSTING JURNAL
         $jurnalPenjualan = $this->postJurnalPenjualan($payload, $sisa_pembayaran, $nomor_transaksi);
-        // $jurnalPenjualan['nomor_jurnal'] = 11111;
         // JIKA SUKSES LANJUT
+
         if($jurnalPenjualan['nomor_jurnal']){
             $data = TransaksiPenjualan::create([
                 'nomor_transaksi'=> $nomor_transaksi,
@@ -129,8 +136,26 @@ class TransaksiPenjualanController extends Controller
                 'cabang_id'=>$payload->user['cabang_id'],
                 'nomor_jurnal'=> $jurnalPenjualan['nomor_jurnal'],
             ]);
+                
+            if($payload->pembayaran['kredit'] == false){
+                $nominal = $payload->invoice['total'] + $payload->invoice['pajak'] +$payload->invoice['ongkir'];
+                $catatan = 'LUNAS';
+            }else{
+                $nominal = $payload->pembayaran['downPayment'];
+                $catatan = 'PEMBAYARAN DOWN PAYMENT';
+            }
             $id = $data->id;
-            // $id = 5;
+            $pembayaran = Pembayaran::create([
+                'penjualan_id'=>$id,
+                'nominal'=> $nominal,
+                'catatan'=>$catatan,
+                'cara_pembayaran'=> $payload->pembayaran['jenisPembayaran']['title'],
+                'cabang_id'=>$payload->user['cabang_id'],
+                'user_id'=>$payload->user['id'],
+                'nomor_jurnal'=> $jurnalPenjualan['nomor_jurnal'],
+            ]);
+
+           
 
             if($id){
                 $hargaPokokPenjualan = 0;
@@ -149,10 +174,13 @@ class TransaksiPenjualanController extends Controller
 
             // POST JURNAL HPP
             $jurnalHPP = $this->postJurnalHpp($payload, $hargaPokokPenjualan,$jurnalPenjualan['nomor_jurnal'], $nomor_transaksi);
+            $reponses = 200;
+        }else{
+            $reponses = 404;
         }
-        // $data = '';
-        // $data->jurnal = $jurnal;
-        return response()->json($data, 200);
+
+        $data->jurnal = $jurnalPenjualan;
+        return response()->json($data, $reponses);
     }
 
     public function update(Request $payload, $id){
@@ -166,8 +194,6 @@ class TransaksiPenjualanController extends Controller
         }
 
         if(TransaksiPenjualan::where('id', $id)->exists()){
-
-
             // DELETE JURNAL
             $cek = Http::delete(keuanganBaseUrl().'jurnal/delete/'.$payload->nomorJurnal);
             $jurnalBaru = $this->postJurnalPenjualan($payload, $sisa_pembayaran, $payload->nomorTransaksi);
@@ -279,7 +305,7 @@ class TransaksiPenjualanController extends Controller
                 'catatan' => 'RETUR '.$value->catatan,
                 'user_id' => $value->user_id,
                 'cabang_id'=>$value->cabang_id,
-                'created_at' =>$value->created_at,
+                'created_at' =>date("Y-m-d h:i:s"),
                 'updated_at' =>$value->updated_at,
             ]);
             $newpersediaan[] = $dd;
@@ -294,30 +320,52 @@ class TransaksiPenjualanController extends Controller
     
     // JURNAL PENJUALAN
     public function postJurnalPenjualan($payload, $sisa_pembayaran = 0, $nomor_transaksi){
+
         $jurnal = [];
         $catatan = 'PENJUALAN NOMOR TRANSAKSI #'. $nomor_transaksi;
+        $transfer = $payload->pembayaran['jenisPembayaran']['value'];
         $piutang = $payload->pembayaran['kredit'];
         $dp =  $payload->pembayaran['downPayment'];
         $sisa_pembayaran= $sisa_pembayaran;
         $kas = $payload->invoice['total'] + $payload->invoice['pajak'] +$payload->invoice['ongkir'];
 
         if($piutang == false){
-            $kas = array(
-                'akunId'=> $payload->user['kode_akun_id'], // KAS KECIL KASIR
-                'namaJenis'=> 'DEBIT',
-                'saldo'=>$kas,
-                'catatan'=>'KAS MASUK '. $catatan,
-            );
-            $jurnal['kas'] = $kas;
-        }else{
-            if($dp !== 0){
+            if($transfer == 1){
+                $bank = array(
+                    'akunId'=> $payload->pembayaran['bank']['kode_akun_id'], // KAS BANK
+                    'namaJenis'=> 'DEBIT',
+                    'saldo'=>$kas,
+                    'catatan'=>'TRANSFER PEMBAYARAN '. $catatan,
+                );
+                $jurnal['bank'] = $bank;
+            }else{
                 $kas = array(
                     'akunId'=> $payload->user['kode_akun_id'], // KAS KECIL KASIR
-                    'namaJenis'=>'DEBIT',
-                    'saldo'=>$dp,
-                    'catatan'=>'DOWN PAYMENT '. $catatan,
+                    'namaJenis'=> 'DEBIT',
+                    'saldo'=>$kas,
+                    'catatan'=>'KAS MASUK '. $catatan,
                 );
-            $jurnal['kas'] = $kas;
+                $jurnal['kas'] = $kas;
+            }
+        }else{
+            if($transfer == 1){
+                $bank = array(
+                    'akunId'=> $payload->pembayaran['bank']['kode_akun_id'], // KAS BANK
+                    'namaJenis'=> 'DEBIT',
+                    'saldo'=>$dp,
+                    'catatan'=>'TRANSFER DOWN PAYMENT '. $catatan,
+                );
+                $jurnal['bank'] = $bank;
+            }else{
+                if($dp !== 0){
+                    $kas = array(
+                        'akunId'=> $payload->user['kode_akun_id'], // KAS KECIL KASIR
+                        'namaJenis'=>'DEBIT',
+                        'saldo'=>$dp,
+                        'catatan'=>'DOWN PAYMENT '. $catatan,
+                    );
+                    $jurnal['kas'] = $kas;
+                }
             }
             $piutang = array(
                 'akunId'=>'5', // PIUTANG DAGANG

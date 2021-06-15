@@ -23,12 +23,16 @@ class TransaksiPembelianController extends Controller
 
         $dateawal = date("Y-m-d 00:00:01", strtotime($dd));
         $dateakhir = date("Y-m-d 23:59:59", strtotime($ddd));
-        $master = DB::table('master_pembelian')
-        ->where('created_at','>',$dateawal)    
-        ->where('created_at','<',$dateakhir)
-        ->where('cabang_id', $cabang == 0 ? '!=' : '=', $cabang)
-        ->where('deleted_at') 
-        ->get();
+        $data = DB::table('master_pembelian')
+        // ->where('created_at','>',$dateawal)    
+        // ->where('created_at','<',$dateakhir)
+        ->where('cabang_id', $cabang == 0 ? '!=' : '=', $cabang)    
+        ->where('deleted_at');
+        if($dd == "null" && $ddd == "null"){
+            $master = $data->get();
+        }else{
+            $master = $data->whereBetween('created_at', [$dateawal, $dateakhir])->get();
+        }
 
         $output = $this->detailData($master);
 
@@ -36,7 +40,7 @@ class TransaksiPembelianController extends Controller
     }
 
     public function detailData($master){
-        
+        $output = [];
         foreach ($master as $key => $value) {
             $invoice = [
                 'diskon'=>$value->diskon,
@@ -47,7 +51,7 @@ class TransaksiPembelianController extends Controller
             ];
     
             $user = User::join('master_pegawai','users.pegawai_id','=','master_pegawai.id')
-            ->where('users.id','=',$value->user_id)->first(['users.*', 'master_pegawai.nama_lengkap']);
+            ->where('users.id','=',$value->user_id)->first(['users.*', 'master_pegawai.nama']);
     
             $orders = DB::table('detail_pembelian')
             ->select('detail_pembelian.*', 'barang.nama as nama_barang')

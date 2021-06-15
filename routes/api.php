@@ -23,6 +23,7 @@ Route::group(['prefix' => 'auth'], function () {
     //POST
     Route::post('/login', 'AuthController@login');
     Route::get('/cek', 'TransaksiPenjualanController@index2');
+    Route::get('/logout', 'AuthController@logout');
 });
 
 // Cabang
@@ -106,6 +107,12 @@ Route::group(['prefix' => 'pembelian'], function () {
     Route::get('/detail/barang/{id}/cabang/{cabang}', 'TransaksiPembelianController@getDetailTransaksiByBarang');
     //DELETE
     Route::delete('/delete/{id}', 'TransaksiPembelianController@destroy');
+});
+
+//PEMBAYARAN UTANG PIUTANG
+Route::group(['prefix' => 'pembayaran'], function () {
+    //POST
+    Route::post('/store/piutang', 'PembayaranController@storePiutang');
 });
 
 // Kepegawaian
