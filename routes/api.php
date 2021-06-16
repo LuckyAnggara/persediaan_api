@@ -92,6 +92,7 @@ Route::group(['prefix' => 'penjualan'], function () {
     //GET
     Route::get('/cabang/{cabang}/awal/{dd}/akhir/{ddd}', 'TransaksiPenjualanController@index');
     Route::get('/detail/barang/{id}/cabang/{cabang}', 'TransaksiPenjualanController@getDetailTransaksiByBarang');
+    Route::get('/transaksi/{id}', 'TransaksiPenjualanController@getTransaksi');
     //DELETE
     Route::delete('/delete/{id}', 'TransaksiPenjualanController@destroy');
 });
@@ -113,6 +114,8 @@ Route::group(['prefix' => 'pembelian'], function () {
 Route::group(['prefix' => 'pembayaran'], function () {
     //POST
     Route::post('/store/piutang', 'PembayaranController@storePiutang');
+    //GET
+    Route::get('/daftar/piutang/{id}', 'PembayaranController@getDetailPembayaranPiutang');
 });
 
 // Kepegawaian

@@ -33,12 +33,18 @@ class TransaksiPenjualanController extends Controller
             $master = $data->whereBetween('created_at', [$dateawal, $dateakhir])->get();
         }
         
-
-        $output = $this->detailData($master);
+        $output = $this->detailDataBatch($master);
         return response()->json($output, 200);
     }
 
-    public function detailData($master){ // DETAIL DATA
+    public function getTransaksi($id){
+        $data = TransaksiPenjualan::findorfail($id);
+
+        $output = $this->detailDataSingle($data);
+        return response()->json($output, 200);
+    }
+
+    public function detailDataBatch($master){ // DETAIL DATA
         $output = [];
         foreach ($master as $key => $value) {
             $invoice = [
@@ -99,6 +105,66 @@ class TransaksiPenjualanController extends Controller
             }
 
             return $output;
+    }
+
+    public function detailDataSingle($value){ // DETAIL DATA
+
+            $invoice = [
+                'diskon'=>$value->diskon,
+                'grandTotal'=>$value->grand_total,
+                'ongkir'=>$value->ongkir,
+                'pajak'=>$value->pajak_keluaran,    
+                'total'=>$value->total,
+            ];
+    
+            $user = User::join('master_pegawai','users.pegawai_id','=','master_pegawai.id')
+            ->where('users.id','=',$value->user_id)->first(['users.*', 'master_pegawai.nama']);
+
+            $sales = Pegawai::where('id',$value->sales_id)->first();
+    
+            $orders = DB::table('detail_penjualan')
+            ->select('detail_penjualan.*', 'barang.nama as nama_barang','detail_penjualan.kode_barang_id as kode_barang','barang.harga_beli as modal','barang.jenis','barang.id as id_barang')
+            ->join('barang','detail_penjualan.kode_barang_id','=','barang.kode_barang')    
+            ->where('detail_penjualan.deleted_at')    
+            ->where('master_penjualan_id','=',$value->id)    
+            ->get();
+    
+            $pelanggan = DB::table('master_kontak')
+            ->where('id','=',$value->kontak_id)
+            ->first();
+    
+            $bank = DB::table('master_bank')
+            ->where('id','=',$value->bank_id)
+            ->first();
+    
+            $pembayaran = [
+                'bank'=>$bank,
+                'downPayment'=>$value->down_payment,
+                'sisaPembayaran'=>$value->sisa_pembayaran,
+                'jenisPembayaran' => $this->caraPembayaran($value->cara_pembayaran),
+                'kredit'=>$value->kredit,
+                'statusPembayaran'=>$this->metodePembayaran($value->metode_pembayaran),
+                'tanggalJatuhTempo'=>$value->tanggal_jatuh_tempo,
+                'status'=>$value->sisa_pembayaran == 0 ? 'LUNAS' : 'BELUM LUNAS',
+            ];
+    
+            $data = [
+                'id'=>$value->id,
+                'retur'=>$value->retur,
+                'nomorTransaksi'=>$value->nomor_transaksi,
+                'tanggalTransaksi'=>$value->created_at,
+                'nomorJurnal' => $value->nomor_jurnal,
+                'invoice'=> $invoice,
+                'orders'=>$orders,
+                'pelanggan'=>$pelanggan,
+                'pembayaran'=>$pembayaran,
+                'user'=> $user,
+                'sales'=>$sales
+    
+            ];
+    
+            $data;
+            return $data;
     }
  
     public function store(Request $payload){
@@ -286,34 +352,46 @@ class TransaksiPenjualanController extends Controller
         $output = [];
         $newpersediaan = [];
         $master = TransaksiPenjualan::findOrFail($payload->id);
-        $master->retur = 'Iya';
-        $master->save();
+        // $master->retur = 'Iya';
+        // $master->save();
 
         // PERSEDIAAN
         $persediaan = KartuPersediaan::where('nomor_transaksi', $master->nomor_transaksi)->get();
-        foreach ($persediaan as $key => $value) {
-            $jenis = 'DEBIT';
-            if($value->jenis == 'DEBIT'){
-                $jenis = 'KREDIT';
-            }
-            $dd = KartuPersediaan::create([
-                'nomor_transaksi'=> $value->nomor_transaksi,
-                'master_barang_id' => $value->master_barang_id,
-                'jenis' => $jenis,
-                'jumlah' => $value->jumlah,
-                'harga' => $value->harga,
-                'catatan' => 'RETUR '.$value->catatan,
-                'user_id' => $value->user_id,
-                'cabang_id'=>$value->cabang_id,
-                'created_at' =>date("Y-m-d h:i:s"),
-                'updated_at' =>$value->updated_at,
-            ]);
-            $newpersediaan[] = $dd;
-        }
+        // foreach ($persediaan as $key => $value) {
+        //     $jenis = 'DEBIT';
+        //     if($value->jenis == 'DEBIT'){
+        //         $jenis = 'KREDIT';
+        //     }
+        //     $dd = KartuPersediaan::create([
+        //         'nomor_transaksi'=> $value->nomor_transaksi,
+        //         'master_barang_id' => $value->master_barang_id,
+        //         'jenis' => $jenis,
+        //         'jumlah' => $value->jumlah,
+        //         'harga' => $value->harga,
+        //         'catatan' => 'RETUR '.$value->catatan,
+        //         'user_id' => $value->user_id,
+        //         'cabang_id'=>$value->cabang_id,
+        //         'created_at' =>date("Y-m-d h:i:s"),
+        //         'updated_at' =>$value->updated_at,
+        //     ]);
+        //     $newpersediaan[] = $dd;
+        // }
         // JURNAL
         $output['master'] = $master;
         $output['persediaan'] = $newpersediaan;
         $output['jurnal'] = $master->nomor_jurnal;
+        // PROSES RETUR
+
+        $pembayaran = Pembayaran::where('penjualan_id', $payload->id)->get();
+
+        $retur = [];
+        // foreach ($pembayaran as $key => $value) {
+        //     $do = Http::post(keuanganBaseUrl().'jurnal/retur/', $value->nomor_jurnal);
+        //     $retur[] = $do;
+
+        // }
+        $output['retur'] = $retur;
+
         return response()->json($output, 200);
 
     }
@@ -507,8 +585,6 @@ class TransaksiPenjualanController extends Controller
         return round($hpp, 0); // RETURN HARGA POKOK PENJUALAN
     }
 
-
-    
     public function getDetailTransaksiByBarang($kode_barang, $cabang){
         $master = DB::table('detail_penjualan')
         ->select('master_penjualan.*')
@@ -517,7 +593,7 @@ class TransaksiPenjualanController extends Controller
         ->join('master_penjualan','detail_penjualan.master_penjualan_id','=','master_penjualan.id')    
         ->get(); 
 
-        $output = $this->detailData($master);
+        $output = $this->detailDataBatch($master);
         return response()->json($output, 200);
     }
 
@@ -591,7 +667,4 @@ class TransaksiPenjualanController extends Controller
         return $data['id'];
     }
 
-    public function index2(){
-        return keuanganBaseUrl();
-    }
 }

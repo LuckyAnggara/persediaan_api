@@ -19,6 +19,8 @@ class PembayaranController extends Controller
             'created_at'=>$payload->tanggal,
             'catatan'=>$payload->catatan,
             'cara_pembayaran'=>$payload->caraPembayaran['title'],
+            'user_id' => $payload->user['id'],
+            'cabang_id'=>$payload->user['cabang_id'],
         ]);
 
         $master = TransaksiPenjualan::find($payload->penjualan_id);
@@ -35,6 +37,11 @@ class PembayaranController extends Controller
             $master->save();
         }
 
+        return response()->json($data, 200);
+    }
+
+    public function getDetailPembayaranPiutang($id){
+        $data = Pembayaran::select('detail_pembayaran.*', 'master_pegawai.nama')->where('detail_pembayaran.penjualan_id',$id)->join('master_pegawai','detail_pembayaran.user_id','=','master_pegawai.id')->get();
         return response()->json($data, 200);
     }
 
@@ -69,7 +76,6 @@ class PembayaranController extends Controller
         $jurnal['piutang'] = $piutang;
         
         $post = [
-            'nomor_jurnal' => $payload->nomor_jurnal,
             'catatan' => $catatan,
             'tanggalTransaksi'=>  date("Y-m-d h:i:s"),
             'user_id' => $payload->user['id'],
