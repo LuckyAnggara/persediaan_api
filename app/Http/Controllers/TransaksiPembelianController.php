@@ -12,6 +12,9 @@ use App\Models\TransaksiPembelian;
 use App\Models\DetailPembelian;
 use App\Models\KartuPersediaan;
 use App\Models\User;
+use App\Models\HargaBeli;
+use App\Models\Gudang;
+
 
 class TransaksiPembelianController extends Controller
 {
@@ -142,6 +145,8 @@ class TransaksiPembelianController extends Controller
         }  
         
         public function store(Request $payload){
+
+            $gudang = Gudang::where('cabang_id', $payload->user['cabang_id'])->where('utama', '1')->first();
     
             if($payload->pembayaran['statusPembayaran']['value'] == 2){
                 $sisa_pembayaran = $payload->invoice['grandTotal'];
@@ -152,7 +157,7 @@ class TransaksiPembelianController extends Controller
             }
 
             // POSTING JURNAL
-            $jurnal = $this->postJurnal($payload, $sisa_pembayaran, $payload->nomorTransaksi);
+            $jurnal = $this->postJurnal($payload, $sisa_pembayaran, $payload->nomorTransaksi, $gudang);
             // JIKA SUKSES LANJUT
     
             $data = TransaksiPembelian::create([
@@ -188,7 +193,19 @@ class TransaksiPembelianController extends Controller
                         'diskon' => $value['diskon'],
                         'total' => ($value['jumlah'] * $value['harga']) - $value['diskon'],
                     ]);
-                    $this->debitPersediaan($value, $payload);
+                    $this->debitPersediaan($value, $payload, $gudang);
+                }
+
+                foreach ($payload->orders as $key => $value) {
+                    $hargaBeli = HargaBeli::create([
+                        'master_barang_id' => $value['id_barang'],
+                        'saldo' => $value['jumlah'],
+                        'harga_beli' => $value['harga'],
+                        'jenis' => 'PEMBELIAN_'.$id,
+                        'user_id' =>  $payload->user['id'],
+                        'cabang_id'=> $payload->user['cabang_id'],
+                        'gudang_id'=> $gudang->id
+                    ]);
                 }
             }
     
@@ -259,7 +276,7 @@ class TransaksiPembelianController extends Controller
     
         }
 
-        public function postJurnal($payload, $sisa_pembayaran = 0, $nomor_transaksi){
+        public function postJurnal($payload, $sisa_pembayaran = 0, $nomor_transaksi, $gudang){
             $jurnal = [];
             $catatan = 'PEMBELIAN NOMOR TRANSAKSI #'. $nomor_transaksi;
             $piutang = $payload->pembayaran['kredit'];
@@ -295,7 +312,7 @@ class TransaksiPembelianController extends Controller
                 $jurnal['piutang'] = $piutang;
             }
             $persediaan = array(
-                'akunId'=>'6', // PERSEDIAAN
+                'akunId'=>$gudang->kode_akun_id, // PERSEDIAAN
                 'namaJenis'=>'debit',
                 'saldo'=>$payload->invoice['total'],
                 'catatan'=> $catatan,
@@ -359,7 +376,7 @@ class TransaksiPembelianController extends Controller
             return $data['id'];
         }
 
-        public function debitPersediaan($data, $payload){
+        public function debitPersediaan($data, $payload, $gudang){
             $detail = KartuPersediaan::create([
                 'nomor_transaksi'=> $payload->nomorTransaksi,
                 'master_barang_id' => $data['id_barang'],
@@ -367,6 +384,7 @@ class TransaksiPembelianController extends Controller
                 'jumlah' => $data['jumlah'],
                 'harga' => $data['harga'],
                 'catatan' => 'PEMBELIAN BARANG NOMOR TRANSAKSI #'. $payload->nomorTransaksi,
+                'gudang_id'=> $gudang->id,
                 'user_id' => $payload->user['id'],
                 'cabang_id'=>$payload->user['cabang_id'],
             ]);

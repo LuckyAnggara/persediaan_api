@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 use App\Models\Barang;
 use App\Models\Gudang;
@@ -14,6 +15,19 @@ use App\Models\HargaJual;
 
 class BarangController extends Controller
 {
+    public function aw(){
+        $con = array();
+        $doc = new \DOMDocument();
+
+        $doc->loadHTML('https://www.wildriftfire.com/');
+        return $doc;
+        foreach($doc->getElementsByTagName('https') as $content) {
+            $con[] = $content;
+        }
+        
+       return $con;
+    }
+
     public function index(){
         $data = DB::table('barang')
         // ->join('satuan_barang', 'barang.satuan_id', '=', 'satuan_barang.id')

@@ -5,7 +5,8 @@ use Illuminate\Support\Facades\DB;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
-use App\Models\Barang;
+// use App\Models\Barang;
+use App\Models\Gudang;
 use App\Models\Kontak;
 use App\Models\TransaksiPenjualan;
 use App\Models\DetailPenjualan;
@@ -13,6 +14,8 @@ use App\Models\User;
 use App\Models\KartuPersediaan;
 use App\Models\Pegawai;
 use App\Models\Pembayaran;
+use App\Models\HargaBeli;
+
 
 
 
@@ -88,6 +91,7 @@ class TransaksiPenjualanController extends Controller
     
             $data = [
                 'id'=>$value->id,
+                'catatan'=>$value->id,
                 'retur'=>$value->retur,
                 'nomorTransaksi'=>$value->nomor_transaksi,
                 'tanggalTransaksi'=>$value->created_at,
@@ -98,7 +102,7 @@ class TransaksiPenjualanController extends Controller
                 'pembayaran'=>$pembayaran,
                 'user'=> $user,
                 'sales'=>$sales
-    
+
             ];
     
             $output[] = $data;
@@ -150,6 +154,7 @@ class TransaksiPenjualanController extends Controller
     
             $data = [
                 'id'=>$value->id,
+                'catatan'=>$value->catatan,
                 'retur'=>$value->retur,
                 'nomorTransaksi'=>$value->nomor_transaksi,
                 'tanggalTransaksi'=>$value->created_at,
@@ -184,6 +189,7 @@ class TransaksiPenjualanController extends Controller
             $data = TransaksiPenjualan::create([
                 'nomor_transaksi'=> $nomor_transaksi,
                 'kontak_id' => $this->cekPelanggan($payload->pelanggan),
+                'catatan' => $payload->catatan,
                 'total' => $payload->invoice['total'],
                 'diskon' => $payload->invoice['diskon'],
                 'ongkir' => $payload->invoice['ongkir'],
@@ -262,8 +268,17 @@ class TransaksiPenjualanController extends Controller
         if(TransaksiPenjualan::where('id', $id)->exists()){
             // DELETE JURNAL
             $cek = Http::delete(keuanganBaseUrl().'jurnal/delete/'.$payload->nomorJurnal);
+
+            $pembayaran = Pembayaran::where('penjualan_id', $payload->id)->get();
+            foreach ($pembayaran as $key => $value) {
+                $dd = Pembayaran::findorFail($value->id);
+                $dd->delete();
+                $do = Http::delete(keuanganBaseUrl().'jurnal/delete/'.$value->nomor_jurnal);
+            }
+
             $jurnalBaru = $this->postJurnalPenjualan($payload, $sisa_pembayaran, $payload->nomorTransaksi);
             if($jurnalBaru['nomor_jurnal']){
+                
                 $master = TransaksiPenjualan::find($id);
                 $master->nomor_transaksi = $payload->nomorTransaksi;
                 $master->kontak_id = $this->cekPelanggan($payload->pelanggan);
@@ -285,6 +300,25 @@ class TransaksiPenjualanController extends Controller
                 $master->cabang_id = $payload->user['cabang_id'];
                 $master->nomor_jurnal = $jurnalBaru['nomor_jurnal'];
                 $master->save();
+
+
+                // PEMBAYARAN
+                if($payload->pembayaran['kredit'] == false){
+                    $nominal = $payload->invoice['total'] + $payload->invoice['pajak'] + $payload->invoice['ongkir'];
+                    $catatan = 'LUNAS';
+                }else{
+                    $nominal = $payload->pembayaran['downPayment'];
+                    $catatan = 'PEMBAYARAN DOWN PAYMENT';
+                }
+                $pembayaran = Pembayaran::create([
+                    'penjualan_id'=>$master->id,
+                    'nominal'=> $nominal,
+                    'catatan'=>$catatan,
+                    'cara_pembayaran'=> $payload->pembayaran['jenisPembayaran']['title'],
+                    'cabang_id'=>$payload->user['cabang_id'],
+                    'user_id'=>$payload->user['id'],
+                    'nomor_jurnal'=> $jurnalBaru['nomor_jurnal']
+                ]);
             }
 
             $detailPenjualan_del = DetailPenjualan::where('master_penjualan_id', $id)->get();
@@ -313,7 +347,6 @@ class TransaksiPenjualanController extends Controller
             // POST JURNAL HPP
             $jurnalHPP = $this->postJurnalHpp($payload, $hargaPokokPenjualan,$jurnalBaru['nomor_jurnal'], $payload->nomorTransaksi);
 
-
             return response()->json(['message'=> $cek->json()], 200);
         }else{
             return response()->json(['message'=> 'Gagal'], 404);
@@ -335,12 +368,36 @@ class TransaksiPenjualanController extends Controller
         foreach ($persediaan as $key => $value) {
             $dd = KartuPersediaan::findOrFail($value->id);
             $dd->delete();
+
+            $xx = HargaBeli::create([
+                'master_barang_id' => $value->master_barang_id,
+                'saldo' => $value->jumlah,
+                'harga_beli' => $value->harga,
+                'jenis' => 'RETUR_'.$payload->id,
+                'user_id' => $value->user_id,
+                'cabang_id'=>$value->cabang_id,
+                'gudang_id'=>1,
+                'created_at' =>date("Y-m-d h:i:s"),
+                'updated_at' =>$value->updated_at,
+            ]);
+            $newhargajual[] = $xx;
+        }
+        // PEMBAYARAN
+        $jurnal = [];
+        $pembayaran = Pembayaran::where('penjualan_id', $master->id)->get();
+        foreach ($pembayaran as $key => $value) {
+            $dd = Pembayaran::findorFail($value->id);
+            $dd->delete();
+            $do = Http::delete(keuanganBaseUrl().'jurnal/delete/'.$value->nomor_jurnal);
+            $jurnal[] = $do->json();
         }
         // JURNAL
         $output['master'] = $master;
         $output['detail'] = $detail;
         $output['persediaan'] = $persediaan;
-        $output['jurnal'] = $master->nomor_jurnal;
+        $output['pembayaran'] = $pembayaran;
+        $output['hargajual'] = $newhargajual;
+        $output['jurnal'] = $jurnal;
         return response()->json($output, 200);
 
         // BAGIAN JURNAL LANGSUNG API DI FRONTEND VUE NYA
@@ -352,44 +409,57 @@ class TransaksiPenjualanController extends Controller
         $output = [];
         $newpersediaan = [];
         $master = TransaksiPenjualan::findOrFail($payload->id);
-        // $master->retur = 'Iya';
-        // $master->save();
+        $master->retur = 'Iya';
+        $master->save();
 
         // PERSEDIAAN
         $persediaan = KartuPersediaan::where('nomor_transaksi', $master->nomor_transaksi)->get();
-        // foreach ($persediaan as $key => $value) {
-        //     $jenis = 'DEBIT';
-        //     if($value->jenis == 'DEBIT'){
-        //         $jenis = 'KREDIT';
-        //     }
-        //     $dd = KartuPersediaan::create([
-        //         'nomor_transaksi'=> $value->nomor_transaksi,
-        //         'master_barang_id' => $value->master_barang_id,
-        //         'jenis' => $jenis,
-        //         'jumlah' => $value->jumlah,
-        //         'harga' => $value->harga,
-        //         'catatan' => 'RETUR '.$value->catatan,
-        //         'user_id' => $value->user_id,
-        //         'cabang_id'=>$value->cabang_id,
-        //         'created_at' =>date("Y-m-d h:i:s"),
-        //         'updated_at' =>$value->updated_at,
-        //     ]);
-        //     $newpersediaan[] = $dd;
-        // }
+        foreach ($persediaan as $key => $value) {
+            $jenis = 'DEBIT';
+            if($value->jenis == 'DEBIT'){
+                $jenis = 'KREDIT';
+            }
+            $dd = KartuPersediaan::create([
+                'nomor_transaksi'=> $value->nomor_transaksi,
+                'master_barang_id' => $value->master_barang_id,
+                'jenis' => $jenis,
+                'jumlah' => $value->jumlah,
+                'harga' => $value->harga,
+                'catatan' => 'RETUR '.$value->catatan,
+                'user_id' => $value->user_id,
+                'cabang_id'=>$value->cabang_id,
+                'created_at' =>date("Y-m-d h:i:s"),
+                'updated_at' =>$value->updated_at,
+            ]);
+            $newpersediaan[] = $dd;
+
+            $xx = HargaBeli::create([
+                'master_barang_id' => $value->master_barang_id,
+                'saldo' => $value->jumlah,
+                'harga_beli' => $value->harga,
+                'jenis' => 'RETUR_'.$payload->id,
+                'user_id' => $value->user_id,
+                'cabang_id'=>$value->cabang_id,
+                'gudang_id'=>1,
+                'created_at' =>date("Y-m-d h:i:s"),
+                'updated_at' =>$value->updated_at,
+            ]);
+            $newhargajual[] = $xx;
+        }
         // JURNAL
         $output['master'] = $master;
         $output['persediaan'] = $newpersediaan;
+        $output['hargajual'] = $newhargajual;
         $output['jurnal'] = $master->nomor_jurnal;
         // PROSES RETUR
 
         $pembayaran = Pembayaran::where('penjualan_id', $payload->id)->get();
 
         $retur = [];
-        // foreach ($pembayaran as $key => $value) {
-        //     $do = Http::post(keuanganBaseUrl().'jurnal/retur/', $value->nomor_jurnal);
-        //     $retur[] = $do;
-
-        // }
+        foreach ($pembayaran as $key => $value) {
+            $do = Http::get(keuanganBaseUrl().'jurnal/retur/'.$value->nomor_jurnal);
+            $retur[] = $do->json();
+        }
         $output['retur'] = $retur;
 
         return response()->json($output, 200);
@@ -539,48 +609,123 @@ class TransaksiPenjualanController extends Controller
 
     public function kreditPersediaan($data, $payload, $nomor_transaksi){
 
-
+        $gudang = Gudang::where('cabang_id', $payload->user['cabang_id'])->where('utama', '1')->first();
         $qty = $data['jumlah'];
         $hpp = 0;
         $harga_modal = $data['modal'];
 
         // CEK FIFO ATAU AVERAGE
         if($data['jenis'] == 'FIFO'){
-            $barang = KartuPersediaan::where('master_barang_id', $data['id_barang'])
-                                            ->where('jenis','=','DEBIT')
-                                            ->whereBetween('created_at', [date("Y-01-01 00:00:01"), date("Y-12-31 23:59:59")])
-                                            ->where('cabang_id','=', $payload->user['cabang_id'])
-                                            ->orderBy('created_at', 'desc')
-                                            ->limit(3);
-            $persediaan = $barang->first();
+
+            $barang = HargaBeli::where('master_barang_id', $data['id_barang'])
+            ->where('saldo', '!=', 0)
+            ->where('cabang_id','=', $payload->user['cabang_id'])
+            ->where('gudang_id', $gudang->id,)
+            ->orderBy('created_at', 'asc')
+            ->get();
+
             $count = $barang->count();
-            if($count < 1){
-                $hpp += $qty * $harga_modal;
+            if($count > 0){
+
+                    foreach ($barang as $key => $value) {
+                        $xx = HargaBeli::find($value['id']);
+                        $saldo = $xx->saldo;
+                        $sisa = $xx->saldo - $qty;
+
+                        if($sisa <= 0){
+                            $qty = $qty - $xx->saldo;
+                            $hpp += $qty * $xx->harga_beli;
+                            $xx->saldo = 0;
+                            $xx->save();
+
+                            $detail = KartuPersediaan::create([
+                                'nomor_transaksi'=> $nomor_transaksi,
+                                'master_barang_id' => $data['id_barang'],
+                                'jenis' => 'KREDIT',
+                                'jumlah' => $qty,
+                                'harga' => round($xx->harga_beli, 0),
+                                'catatan' => 'PENJUALAN BARANG NOMOR TRANSAKSI #'. $nomor_transaksi,
+                                'user_id' => $payload->user['id'],
+                                'cabang_id'=>$payload->user['cabang_id'],
+                                'gudang_id'=>$gudang->id,
+                            ]);
+
+                            
+                        }else{
+                            $hpp += $qty * $xx->harga_beli;
+                            $xx->saldo = $saldo - $qty;
+                            $xx->save();
+
+                            $detail = KartuPersediaan::create([
+                                'nomor_transaksi'=> $nomor_transaksi,
+                                'master_barang_id' => $data['id_barang'],
+                                'jenis' => 'KREDIT',
+                                'jumlah' => $qty,
+                                'harga' => round($xx->harga_beli, 0),
+                                'catatan' => 'PENJUALAN BARANG NOMOR TRANSAKSI #'. $nomor_transaksi,
+                                'user_id' => $payload->user['id'],
+                                'cabang_id'=>$payload->user['cabang_id'],
+                                'gudang_id'=>$gudang->id,
+                            ]);
+
+                            
+                            $qty = 0;
+                        }
+
+
+
+                        if($qty == 0){
+                            break;
+                        }
+                    }
+
+                    if($qty > 0){
+                        $hpp += $qty * $harga_modal;
+                        $detail = KartuPersediaan::create([
+                            'nomor_transaksi'=> $nomor_transaksi,
+                            'master_barang_id' => $data['id_barang'],
+                            'jenis' => 'KREDIT',
+                            'jumlah' => $qty,
+                            'harga' => round($harga_modal, 0),
+                            'catatan' => 'PENJUALAN BARANG NOMOR TRANSAKSI #'. $nomor_transaksi . 'SALDO PERSEDIAAN TIDAK MENCUKUPI, HARGA MODAL MENGGUNAKAN HARGA MODAL DEFAULT',
+                            'user_id' => $payload->user['id'],
+                            'cabang_id'=>$payload->user['cabang_id'],
+                            'gudang_id'=>$gudang->id,
+                        ]);
+                    }
+
             }else{
-                $harga_modal = $persediaan->harga;
+                // $harga_modal = $persediaan->harga;
+                // $harga_modal = $persediaan->harga_beli;
                 $hpp += $qty * $harga_modal;
+                $detail = KartuPersediaan::create([
+                    'nomor_transaksi'=> $nomor_transaksi,
+                    'master_barang_id' => $data['id_barang'],
+                    'jenis' => 'KREDIT',
+                    'jumlah' => $qty,
+                    'harga' => round($harga_modal, 0),
+                    'catatan' => 'PENJUALAN BARANG NOMOR TRANSAKSI #'. $nomor_transaksi,
+                    'user_id' => $payload->user['id'],
+                    'cabang_id'=>$payload->user['cabang_id'],
+                ]);
             }
         }else{
-            $harga =  KartuPersediaan::where('master_barang_id', $data['id_barang'])
-                                        ->where('jenis','=','DEBIT')
-                                        ->whereBetween('created_at', [date("Y-01-01 00:00:01"), date("Y-12-31 23:59:59")])
-                                        ->where('cabang_id','=', $payload->user['cabang_id'])
-                                        ->limit(5)
-                                        ->avg('harga');
-            $harga_modal = $harga;
-            $hpp += $qty * $harga_modal;
+            // AVERAGE
+            // 
+            // $harga =  KartuPersediaan::where('master_barang_id', $data['id_barang'])
+            // ->where('saldo', '!=', 0)
+            // ->where('cabang_id','=', $payload->user['cabang_id'])
+            // ->orderBy('created_at', 'asc')
+            // ->avg('harga_beli');
+            // // $harga =  KartuPersediaan::where('master_barang_id', $data['id_barang'])
+            // //                             ->where('jenis','=','DEBIT')
+            // //                             ->whereBetween('created_at', [date("Y-01-01 00:00:01"), date("Y-12-31 23:59:59")])
+            // //                             ->where('cabang_id','=', $payload->user['cabang_id'])
+            // //                             ->limit(5)
+            // //                             ->avg('harga');
+            // $harga_modal = $harga;
+            // $hpp += $qty * $harga_modal;
         }
-
-        $detail = KartuPersediaan::create([
-            'nomor_transaksi'=> $nomor_transaksi,
-            'master_barang_id' => $data['id_barang'],
-            'jenis' => 'KREDIT',
-            'jumlah' => $qty,
-            'harga' => round($harga_modal, 0),
-            'catatan' => 'PENJUALAN BARANG NOMOR TRANSAKSI #'. $nomor_transaksi,
-            'user_id' => $payload->user['id'],
-            'cabang_id'=>$payload->user['cabang_id'],
-        ]);
 
         return round($hpp, 0); // RETURN HARGA POKOK PENJUALAN
     }

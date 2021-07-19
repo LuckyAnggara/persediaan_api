@@ -42,6 +42,7 @@ Route::group(['prefix' => 'barang'], function () {
     Route::post('/merek/store', 'BarangController@merekStore');
     //GET
     Route::get('/', 'BarangController@index');
+    Route::get('/aw', 'BarangController@aw');
     Route::get('/detail/{id}', 'BarangController@show');
     Route::get('/gudang', 'BarangController@gudang');
     Route::get('/satuan', 'BarangController@satuan');
@@ -55,13 +56,21 @@ Route::group(['prefix' => 'barang'], function () {
 // Persediaan
 Route::group(['prefix' => 'persediaan'], function () {
     //POST
-    Route::post('/store', 'PersediaanController@store');
+    Route::post('/store', 'PersediaanController@storeOpname');
+    Route::post('/transfer', 'PersediaanController@storeTransfer');
     //GET
-    Route::get('/', 'PersediaanController@index');
+    Route::get('/cabang/{cabang_id}/{gudang_id}', 'PersediaanController@index');
     Route::get('/penyesuaian/cabang/{cabang_id}', 'PersediaanController@daftarPenyesuaian');
-    Route::get('/{id}', 'PersediaanController@show');
+    Route::get('/transfer/cabang/{cabang_id}', 'PersediaanController@daftarTransfer');
+    Route::get('/{id}/gudang/{gudang}', 'PersediaanController@show');
     //DESTROY
-    Route::delete('/{id}', 'BarangController@destroy');
+    Route::delete('/transfer/destroy/{id}', 'PersediaanController@destroyTransfer');
+});
+
+// Cabang
+Route::group(['prefix' => 'gudang'], function () {
+    //GET
+    Route::get('/{cabang_id}', 'GudangController@index');
 });
 
 // Kontak
