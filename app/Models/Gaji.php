@@ -4,19 +4,19 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-// use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Pembayaran extends Model
+class Gaji extends Model
 {
     use HasFactory;
-    // use SoftDeletes;
+    use SoftDeletes;
  
-    protected $table = 'detail_pembayaran';
+    protected $table = 'master_gaji';
     protected $guarded = [
         'id',
     ];
     public $primaryKey = 'id';
     public $timestamps = true;
-    // protected $dates = ['deleted_at'];
+    protected $dates = ['deleted_at'];
 
 }

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+
 use App\Models\Pegawai;
 use App\Models\Presensi;
 use App\Models\Cabang;
@@ -97,4 +97,6 @@ class PegawaiController extends Controller
         $data = Presensi::where('pegawai_id', $id)->whereBetween('tanggal',[$dateawal, $dateakhir])->get();
         return response()->json($data, 200);
     }
+
+
 }

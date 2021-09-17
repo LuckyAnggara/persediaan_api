@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 use App\Models\User;
+use App\Models\Cabang;
 use App\Models\Pegawai;
 
 class AuthController extends Controller
@@ -19,19 +20,18 @@ class AuthController extends Controller
                 return response()->json($response, $code);
             }
             if($user->password == $request->password){
-                if($user->cabang_id == $request->cabang['id']){
-                    $code = 200;
+                $code = 200;
 
-                    $pegawai = Pegawai::where('id','=', $user->pegawai_id)->first();
-                    $user->fullName = $pegawai->full_name;
-                    $user->avatar = $pegawai->avatar;
-                    
+                $pegawai = Pegawai::find($user->pegawai_id);
+                $cabang = Cabang::find($user->cabang_id);
 
-                    $response = $user;
-                }else{
-                    $code = 203;
-                    $response = 'Cabang tidak sesuai';
-                }
+                $user->fullName = $pegawai->full_name;
+                $user->avatar = $pegawai->avatar;
+                $user->cabang = $cabang;
+                $user->pegawai = $pegawai;
+                
+
+                $response = $user;
           
             }else{
                 $code = 202; // PASSWORD SALAH

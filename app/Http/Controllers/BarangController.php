@@ -28,7 +28,10 @@ class BarangController extends Controller
        return $con;
     }
 
-    public function index(){
+    public function index(Request $payload){
+
+        $cabang_id = $payload->input('cabang_id');
+        $gudang = Gudang::where('cabang_id', $cabang_id)->where('utama', '1')->first();
         $data = DB::table('barang')
         // ->join('satuan_barang', 'barang.satuan_id', '=', 'satuan_barang.id')
         ->join('jenis_barang', 'barang.jenis_id', '=', 'jenis_barang.id')
@@ -47,6 +50,25 @@ class BarangController extends Controller
             ->get();
             $value->harga = $harga;
             $output[] = $value;
+
+            $saldo_masuk = DB::table('kartu_persediaan')
+            ->where('gudang_id', '=',$gudang->id)
+            ->where('cabang_id', '=',$cabang_id)
+            ->where('master_barang_id', '=',$value->id)
+            ->where('jenis', '=','DEBIT')
+            ->sum('jumlah');
+
+            $saldo_keluar = DB::table('kartu_persediaan')
+            ->where('master_barang_id', '=',$value->id)
+            ->where('gudang_id', '=',$gudang->id)
+            ->where('cabang_id', '=',$cabang_id)
+            ->where('jenis', '=','KREDIT')
+            ->sum('jumlah');
+
+            $value->persediaan['saldo'] = $saldo_masuk - $saldo_keluar;
+            $value->persediaan['gudang'] = $gudang->nama;
+
+            
         }
         return response()->json($output, 200);
     }
@@ -146,7 +168,7 @@ class BarangController extends Controller
         return response()->json($data, 200);
     }
 
-    public function show($id){
+    public function show2($id){
         try{
             // $barang = Barang::findOrFail($id);
             $barang = DB::table('barang')
@@ -177,6 +199,40 @@ class BarangController extends Controller
         }
 
         return response()->json($response, 200);
+    }
+
+    public function show(Request $payload){
+        $id = $payload->input('id');
+        try{
+            // $barang = Barang::findOrFail($id);
+            $barang = DB::table('barang')
+            ->join('jenis_barang', 'barang.jenis_id', '=', 'jenis_barang.id')
+            ->join('merek_barang', 'barang.merek_id', '=', 'merek_barang.id')
+            ->join('gudang', 'barang.gudang_id', '=', 'gudang.id')
+            ->select('barang.*', 'gudang.nama as nama_gudang','jenis_barang.nama as nama_jenis', 'merek_barang.nama as nama_merek')
+            ->where('barang.id', '=',$id)
+            ->first();
+
+            $harga = DB::table('harga_jual')
+            ->join('satuan_barang', 'harga_jual.satuan_id', '=', 'satuan_barang.id')
+            ->select('harga_jual.*', 'satuan_barang.nama as nama_satuan')
+            ->where('kode_barang', '=',$barang->kode_barang)
+            ->get();
+            $code = 200;
+
+            $response['barang'] = $barang;
+            $response['harga'] = $harga;
+        }catch(Execption $e){
+            if($e instanceof ModelNotFoundException){
+                $code = 404;
+                $response = 'ID tidak ditemukan';
+            }else{
+                $code = 500;
+                $response = $e->getMessage();
+            }
+        }
+
+        return response()->json($response, $code);
     }
 
     public function destroy($id)

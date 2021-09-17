@@ -56,10 +56,13 @@ class PersediaanController extends Controller
 
 
             // ->sum('saldo_rupiah');
+            $harga_beli = null;
             $saldo = $saldo_masuk - $saldo_keluar;
-            if($saldo < 0){
+            if($saldo == 0){
                $barang =  Barang::find($value->id);
                $saldo_rupiah = $saldo * $barang->harga_beli;
+            }else if($saldo < 0){
+                $saldo_rupiah = $saldo * 0;
             }else{
                 $saldo_rupiah = DB::table('harga_beli')
                 ->select(DB::raw('sum(saldo * harga_beli) as saldo_rupiah'))
@@ -69,13 +72,24 @@ class PersediaanController extends Controller
                 ->where('deleted_at')
                 ->where('saldo', '!=','0')->first();
                 $saldo_rupiah = $saldo_rupiah->saldo_rupiah;
+
+                $harga_beli = DB::table('harga_beli')
+                ->select('harga_beli.*',DB::raw('saldo * harga_beli as total'))
+                ->where('master_barang_id', '=',$value->id)
+                ->where('cabang_id', '=',$cabang_id)
+                ->where('gudang_id', '=',$gudang_id)
+                ->where('saldo', '!=','0')
+                ->orderBy('created_at','ASC')
+                ->get();
             }
 
             $value->persediaan['saldo'] = $saldo_masuk - $saldo_keluar;
             $value->persediaan['saldo_masuk'] = $saldo_masuk;
             $value->persediaan['saldo_keluar'] = $saldo_keluar;
             $value->persediaan['saldo_rp'] = $saldo_rupiah;
+            $value->persediaan['harga_beli'] = $harga_beli;
             $value->persediaan['gudang_id'] = $xx;
+
             $output[] = $value;
         }
         return response()->json($output, 200);
@@ -186,11 +200,9 @@ class PersediaanController extends Controller
             ]);
 
             if($master->id){
+                $nominal = 0;
                 foreach ($payload->data as $key => $value) {
-                    $nominal = 0;
-
                     $jenis = 'KREDIT';
-    
                     if($value['perbedaan'] == 0){
                         continue;
                     }
@@ -206,7 +218,6 @@ class PersediaanController extends Controller
                             'gudang_id' => $payload->gudang['id'],
                             'user_id' =>  $payload->user['id'],
                             'cabang_id'=> $payload->user['cabang_id'],
-                            'gudang_id'=> $payload->gudang['id'],
                         ]);
                         $nominal += $value['perbedaan'] * $value['harga'];
                     }
@@ -281,6 +292,7 @@ class PersediaanController extends Controller
                 }
     
                 $jurnal = $this->postJurnalPersediaan($payload, $nominal, $jenis, $nomor_opname);
+                return $jurnal;
                 $persediaan['jurnal'] = $jurnal;
                 $master->nomor_jurnal = $jurnal['nomor_jurnal'];
                 $master->save();
@@ -294,6 +306,7 @@ class PersediaanController extends Controller
     }
 
     function postJurnalPersediaan($payload, $saldo, $jenis, $catatan){
+
         $jenisPersediaan = 'DEBIT';
         $jenisHpp = 'KREDIT';
         
@@ -319,9 +332,9 @@ class PersediaanController extends Controller
         $jurnal['hpp'] = $hpp;
 
         $post = [
-            'nomor_jurnal' => '',
+            // 'nomor_jurnal' => '',
             'catatan' => $catatan,
-            'tanggalTransaksi'=>  date("Y-m-d h:i:s"),
+            'tanggalTransaksi'=>  $payload->tanggalTransaksi,
             'user_id' => $payload->user['id'],
             'cabang_id'=>$payload->user['cabang_id'],
             'jurnal'=> $jurnal

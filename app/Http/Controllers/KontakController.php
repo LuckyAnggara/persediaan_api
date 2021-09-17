@@ -9,11 +9,19 @@ use App\Models\Kontak;
 class KontakController extends Controller
 {
     public function index(){
-        $data = DB::table('master_kontak')
-        ->select('*')
-        ->where('wic', '=',0)
-        ->where('deleted_at', '=',null)
-        ->get();
+
+        // if($cabang_id == 0)
+        // {
+        //     $data = Kontak::where('wic', '=',0)->get();
+        // }else{
+            $data = DB::table('master_kontak')
+            ->select('*')
+            ->where('wic', '=',0)
+            // ->where('cabang_id', '=',$cabang_id)
+            ->where('deleted_at', '=',null)
+            ->get();
+        // }
+
         return response()->json($data, 200);
 
 
