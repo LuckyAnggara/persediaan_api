@@ -23,8 +23,7 @@ class PersediaanController extends Controller
         $data = DB::table('barang')
         ->join('jenis_barang', 'barang.jenis_id', '=', 'jenis_barang.id')
         ->join('merek_barang', 'barang.merek_id', '=', 'merek_barang.id')
-        ->join('gudang', 'barang.gudang_id', '=', 'gudang.id')
-        ->select('barang.*', 'gudang.nama as nama_gudang','jenis_barang.nama as nama_jenis', 'merek_barang.nama as nama_merek')
+        ->select('barang.*', 'jenis_barang.nama as nama_jenis', 'merek_barang.nama as nama_merek')
         ->where('barang.deleted_at', '=',null)
         ->get();
 

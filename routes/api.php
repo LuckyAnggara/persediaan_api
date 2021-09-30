@@ -46,6 +46,7 @@ Route::group(['prefix' => 'barang'], function () {
     Route::post('/jenis/store', 'BarangController@jenisStore');
     Route::post('/satuan/store', 'BarangController@satuanStore');
     Route::post('/merek/store', 'BarangController@merekStore');
+    Route::post('/ubah-harga-semua', 'BarangController@ubahHargaSemua');
     //GET
     Route::get('/', 'BarangController@index');
     Route::get('/aw', 'BarangController@aw');
@@ -76,7 +77,8 @@ Route::group(['prefix' => 'persediaan'], function () {
 // Gudang
 Route::group(['prefix' => 'gudang'], function () {
     //GET
-    Route::get('/{cabang_id}', 'GudangController@index');
+    Route::get('/cabang', 'GudangController@index');
+    Route::get('/gudang', 'GudangController@gudang');
 });
 
 // Kontak
@@ -109,6 +111,7 @@ Route::group(['prefix' => 'penjualan'], function () {
     Route::get('/transaksi/{id}', 'TransaksiPenjualanController@getTransaksi');
     //DELETE
     Route::delete('/delete/{id}', 'TransaksiPenjualanController@destroy');
+    Route::get('/ss/{cabang}', 'TransaksiPenjualanController@makeNomorTrx');
 });
 
 // Transaksi Pembelian

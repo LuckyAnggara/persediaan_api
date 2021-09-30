@@ -32,24 +32,18 @@ class BarangController extends Controller
 
         $cabang_id = $payload->input('cabang_id');
         $gudang = Gudang::where('cabang_id', $cabang_id)->where('utama', '1')->first();
+
         $data = DB::table('barang')
-        // ->join('satuan_barang', 'barang.satuan_id', '=', 'satuan_barang.id')
         ->join('jenis_barang', 'barang.jenis_id', '=', 'jenis_barang.id')
         ->join('merek_barang', 'barang.merek_id', '=', 'merek_barang.id')
-        ->join('gudang', 'barang.gudang_id', '=', 'gudang.id')
-        ->select('barang.*', 'gudang.nama as nama_gudang','jenis_barang.nama as nama_jenis', 'merek_barang.nama as nama_merek')
+        // ->join('gudang', 'barang.gudang_id', '=', 'gudang.id')
+        ->select('barang.*','jenis_barang.nama as nama_jenis', 'merek_barang.nama as nama_merek')
         ->where('barang.deleted_at', '=',null)
         ->get();
 
         
         foreach ($data as $key => $value) {
-            $harga = DB::table('harga_jual')
-            ->join('satuan_barang', 'harga_jual.satuan_id', '=', 'satuan_barang.id')
-            ->select('harga_jual.*', 'satuan_barang.nama as nama_satuan')
-            ->where('kode_barang', '=',$value->kode_barang)
-            ->get();
-            $value->harga = $harga;
-            $output[] = $value;
+          
 
             $saldo_masuk = DB::table('kartu_persediaan')
             ->where('gudang_id', '=',$gudang->id)
@@ -67,6 +61,8 @@ class BarangController extends Controller
 
             $value->persediaan['saldo'] = $saldo_masuk - $saldo_keluar;
             $value->persediaan['gudang'] = $gudang->nama;
+
+            $output[] = $value;
 
             
         }
@@ -174,8 +170,7 @@ class BarangController extends Controller
             $barang = DB::table('barang')
             ->join('jenis_barang', 'barang.jenis_id', '=', 'jenis_barang.id')
             ->join('merek_barang', 'barang.merek_id', '=', 'merek_barang.id')
-            ->join('gudang', 'barang.gudang_id', '=', 'gudang.id')
-            ->select('barang.*', 'gudang.nama as nama_gudang','jenis_barang.nama as nama_jenis', 'merek_barang.nama as nama_merek')
+            ->select('barang.*', 'jenis_barang.nama as nama_jenis', 'merek_barang.nama as nama_merek')
             ->where('barang.id', '=',$id)
             ->first();
 
@@ -208,8 +203,7 @@ class BarangController extends Controller
             $barang = DB::table('barang')
             ->join('jenis_barang', 'barang.jenis_id', '=', 'jenis_barang.id')
             ->join('merek_barang', 'barang.merek_id', '=', 'merek_barang.id')
-            ->join('gudang', 'barang.gudang_id', '=', 'gudang.id')
-            ->select('barang.*', 'gudang.nama as nama_gudang','jenis_barang.nama as nama_jenis', 'merek_barang.nama as nama_merek')
+            ->select('barang.*', 'jenis_barang.nama as nama_jenis', 'merek_barang.nama as nama_merek')
             ->where('barang.id', '=',$id)
             ->first();
 
@@ -267,5 +261,21 @@ class BarangController extends Controller
     public function merek(){
         $data = MerekBarang::all();
         return response()->json($data, 200);
+    }
+
+    public function ubahHargaSemua(Request $payload){
+        $return = [];
+        foreach ($payload->data as $key => $value) {
+            $master = Barang::find($value['id']);
+
+            $master->harga_ritel = $value['harga_ritel'];
+            $master->harga_konsumen = $value['harga_konsumen'];
+            $master->harga_lainnya = $value['harga_lainnya'];
+
+            $master->save();
+            $return[] = $master;
+        }
+        return response()->json($return, 200);
+
     }
 }

@@ -308,9 +308,9 @@ class POController extends Controller
         $master = PO::findOrFail($id);
         $master->status_po_masuk = $status;
         $master->status_po = $status;
-        if($nomorTransaksi){
+        // if($nomorTransaksi){
             $master->nomor_transaksi = $nomorTransaksi;
-        }
+        // }
         $master->save();
 
 

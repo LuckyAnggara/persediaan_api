@@ -185,7 +185,7 @@ class TransaksiPenjualanController extends Controller
     }
  
     public function store(Request $payload){
-        $nomor_transaksi = $this->makeNomorTrx();
+        $nomor_transaksi = $this->makeNomorTrx($payload->user['cabang_id']);
         if($payload->pembayaran['statusPembayaran']['value'] == 2){
             $sisa_pembayaran = $payload->invoice['grandTotal'];
         }else if($payload->pembayaran['statusPembayaran']['value'] == 1){
@@ -770,7 +770,7 @@ class TransaksiPenjualanController extends Controller
         ];
     }
 
-    public function makeNomorTrx(){
+    public function makeNomorTrx($cabang){
         $data = TransaksiPenjualan::all();
         $output = collect($data)->last();
         $date = date("dmy");
@@ -779,15 +779,15 @@ class TransaksiPenjualanController extends Controller
             $dd = $output->nomor_transaksi;
             $str = explode('-', $dd);
 
-            if($str[1] == $date){
-                $last_prefix = $str[2]+ 1;
-                return 'BBM-'.$date.'-'.$last_prefix;
+            if($str[2] == $date){
+                $last_prefix = $str[3]+ 1;
+                return 'BBM-'.$cabang.'-'.$date.'-'.$last_prefix;
             }
 
-            return 'BBM-'.$date.'-'.'1';
+            return 'BBM-'.$cabang.'-'.$date.'-'.'1';
            
         }
-        return 'BBM-'.$date.'-'.'1';      
+        return 'BBM-'.$cabang.'-'.$date.'-'.'1';      
     }
 
     public function cekPelanggan($data){

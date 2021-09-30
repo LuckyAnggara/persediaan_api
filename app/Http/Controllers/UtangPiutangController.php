@@ -37,6 +37,7 @@ class UtangPiutangController extends Controller
         ->join('master_kontak','master_penjualan.kontak_id','=','master_kontak.id') 
         ->whereDate('master_penjualan.created_at','>=',$dateawal)    
         ->whereDate('master_penjualan.created_at','<=   ',$dateakhir)
+        ->where('master_penjualan.cabang_id',$cabang)
         ->where('master_penjualan.kredit','1')
         ->orderBy('created_at','asc')
         ->get();
