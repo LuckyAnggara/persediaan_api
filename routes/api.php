@@ -220,6 +220,8 @@ Route::group(['prefix' => 'presensi'], function () {
 Route::group(['prefix' => 'setor'], function () {
     //GET
     Route::get('/', 'SetorController@index');
+    Route::get('/pelaporan', 'SetorController@pelaporan');
+    Route::get('/batal', 'SetorController@batal');
     //POST
     Route::post('/store/', 'SetorController@store');
     Route::post('/confirm/', 'SetorController@confirm');

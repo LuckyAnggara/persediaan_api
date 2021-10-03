@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Http;
 
 use App\Models\Setor;
 use App\Models\Cabang;
+use Carbon\Carbon;
 
 class SetorController extends Controller
 {
@@ -42,20 +43,34 @@ class SetorController extends Controller
     public function store(Request $payload){
 
        $data =  Setor::create([
-            'cabang_id_dari' => $payload->cabang_id_dari['id'],
-            'cabang_id_ke' =>  $payload->cabang_id_ke['id'],
-            'kode_akun_id_dari' => $payload->cabang_id_dari['kode_akun_id'],
-            'kode_akun_id_ke' =>  $payload->lawan_akun_id_ke['id'],
+            'cabang_id_dari' => $payload->user['cabang_id'],
+            'cabang_id_ke' => 1,
+            'kode_akun_id_dari' => $payload->jenis_penyetoran['value'] === 1 ? $payload->bank['kode_akun_id'] : $payload->user['cabang']['kode_akun_id'],
+            'kode_akun_id_ke' =>  65, //KODE AKUN ID SETOR MASTER
             'nominal' => $payload->jumlah,
             'catatan' => $payload->catatan,
             'user_id' => $payload->user['id'],
             'cabang_id' => $payload->user['cabang_id'],
-            'status'=> 'SEND'
+            'status'=> 'SEND',
+            'created_at' => $payload->tanggal
         ]);
 
         return response()->json($data, 200);
     }
 
+    public function batal(Request $payload){
+        $id = $payload->input('id');
+
+        $master = Setor::find($id);
+        $code = 404;
+        if($master){
+            $master->delete();
+            $code = 200;
+        }
+
+        return response()->json($master, $code);
+
+    }
     public function confirm(Request $payload){
         $master = Setor::findOrFail($payload->id);
 
@@ -63,15 +78,13 @@ class SetorController extends Controller
 
             $post = $this->postJurnalConfirm($master, $payload); 
             if($post){
-                $master->status_terima = 'APPROVED';
-                $master->status_kirim = 'APPROVED';
+                $master->status = 'APPROVED';
                 $master->nomor_jurnal_dari = $post['jurnal_1']['nomor_jurnal'];
                 $master->nomor_jurnal_ke = $post['jurnal_2']['nomor_jurnal'];
                 $master->save();
             }
         }else if ($payload->confirm == 'REJECTED'){
-            $master->status_terima = 'REJECTED';
-            $master->status_kirim ='REJECTED';
+            $master->status ='REJECTED';
             $master->save();
         }
 
@@ -138,5 +151,41 @@ class SetorController extends Controller
             'jurnal_1' => $output_1->json(),
             'jurnal_2' => $output_2->json(),
         ];
+    }
+
+    public function pelaporan(Request $payload){
+        $cabang_id = $payload->input('cabang_id');
+        $year = $payload->input('tahun');
+        $month = $payload->input('bulan');
+        $day = $payload->input('hari');
+
+        if($year != null){
+            $dateawal = date($year.'-01-01 00:00:00');
+            $dateakhir = date($year.'-12-31 23:59:59');
+        }
+        if($month != null){
+            $dateawal =  date('Y-'.$month.'-01 00:00:00');
+            $dateakhir = date('Y-'.$month.'-31 23:59:59');
+        }
+        if($day != null){
+            $dateawal = date('2021-m-d 00:00:00', strtotime($day));
+            $dateakhir = date('Y-m-d 23:59:59', strtotime($day));
+        }
+
+        $master = Setor::where('cabang_id', $cabang_id)
+        ->where('created_at','>=',$dateawal)    
+        ->where('created_at','<=',$dateakhir);
+        
+        // PELAPORAN
+        $output['pelaporan']['data']  = $master->where('status', 'SEND')->get();
+        $output['pelaporan']['total']  = $master->where('status', 'SEND')->sum('nominal');
+        // TERBUKU
+        $output['terbuku']['data']  = $master->where('status', 'APPROVE')->get();
+        $output['terbuku']['total']  = $master->where('status', 'APPROVE')->sum('nominal');
+
+        $output['sisa'] = $output['pelaporan']['total'] - $output['terbuku']['total'];
+
+        return response()->json($output, 200);
+
     }
 }

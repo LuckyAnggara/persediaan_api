@@ -621,7 +621,7 @@ class TransaksiPenjualanController extends Controller
             ->where('saldo', '!=', 0)
             ->where('cabang_id','=', $payload->user['cabang_id'])
             ->where('gudang_id', $gudang->id,)
-            ->orderBy('created_at', 'desc')
+            ->orderBy('created_at', 'asc')
             ->get();
 
             $detail = KartuPersediaan::create([
