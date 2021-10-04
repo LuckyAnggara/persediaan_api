@@ -36,7 +36,12 @@ Route::group(['prefix' => 'dashboard-cabang'], function () {
 Route::group(['prefix' => 'cabang'], function () {
     //GET
     Route::get('/', 'CabangController@index');
+    Route::get('/detail', 'CabangController@show');
+    //POST
+    Route::post('/update', 'CabangController@update');
+    Route::post('/store', 'CabangController@store');
 });
+
 // Barang
 Route::group(['prefix' => 'barang'], function () {
     //POST

@@ -42,12 +42,17 @@ class SetorController extends Controller
     
     public function store(Request $payload){
 
+        $cabang_tujuan = Cabang::find(1);
+        $cabang_asal = Cabang::find($payload->user['cabang_id']);
+
        $data =  Setor::create([
             'cabang_id_dari' => $payload->user['cabang_id'],
             'cabang_id_ke' => 1,
-            'kode_akun_id_dari' => $payload->jenis_penyetoran['value'] === 1 ? $payload->bank['kode_akun_id'] : $payload->user['cabang']['kode_akun_id'],
-            'kode_akun_id_ke' =>  65, //KODE AKUN ID SETOR MASTER
+            'kode_akun_id_dari' => $payload->dari == 'TUNAI' ? $cabang_asal->kode_akun_id : $payload->bank['id'],
+            'kode_akun_id_ke' =>  $payload->jenis_penyetoran['title'] === 'TRANSFER' ?  $payload->bank['id'] : $cabang_tujuan->kode_akun_id,
+            'lawan_akun' => 65, //KODE AKUN ID SETOR MASTER
             'nominal' => $payload->jumlah,
+            'tipe' => $payload->jenis_penyetoran['title'],
             'catatan' => $payload->catatan,
             'user_id' => $payload->user['id'],
             'cabang_id' => $payload->user['cabang_id'],
@@ -92,22 +97,22 @@ class SetorController extends Controller
 
     }
 
-    public function postJurnalConfirm($master, $payload){
+    public function postJurnalConfirm($master){
 
         /// JURNAL DARI
         $kredit_1 = array(
-            'akunId'=>$payload->kode_akun_id_dari['id'], // KAS INDUK
+            'akunId'=>$master->kode_akun_id_dari, // KAS INDUK
             'namaJenis'=>'KREDIT',
             'saldo'=>$master->nominal,
-            'catatan'=> $master->catatan,
+            'catatan'=>'SETORAN SECARA '. $master->tipe .' #' . $master->catatan,
         );
         $jurnal_1['kredit_1'] = $kredit_1;
 
         $debit_1 = array(
-            'akunId'=> '29', // PRIVE
+            'akunId'=> $master->lawan_akun, // AKUN SETOR
             'namaJenis'=>'DEBIT',
             'saldo'=>$master->nominal,
-            'catatan'=> $master->catatan,
+            'catatan'=> 'SETORAN SECARA '. $master->tipe .' #' . $master->catatan,
         );
         $jurnal_1['debit_1'] = $debit_1;
 
@@ -122,26 +127,26 @@ class SetorController extends Controller
 
         /// JURNAL KE
         $kredit_2 = array(
-            'akunId'=> '28',
+            'akunId'=> $master->lawan_akun, // AKUN SETOR
             'namaJenis'=>'KREDIT',
             'saldo'=>$master->nominal,
-            'catatan'=> $master->catatan,
+            'catatan'=>'SETORAN SECARA '. $master->tipe .' #' . $master->catatan,
         );
         $jurnal_2['kredit_2'] = $kredit_2;
 
         $debit_2 = array(
-            'akunId'=>$payload->kode_akun_id_ke['id'], // KAS INDUK atau KAS BANK
+            'akunId'=>$master->kode_akun_id_ke, // KAS INDUK atau KAS BANK
             'namaJenis'=>'DEBIT',
             'saldo'=>$master->nominal,
-            'catatan'=> $master->catatan,
+            'catatan'=>'SETORAN SECARA '. $master->tipe .' #' . $master->catatan,
         );
         $jurnal_2['debit_2'] = $debit_2;
 
         $post_2 = [
             'catatan' => $master->catatan,
             'tanggalTransaksi'=>  date("Y-m-d h:i:s"),
-            'user_id' => $payload->user_terima['id'],
-            'cabang_id'=> $payload->user_terima['cabang_id'],
+            'user_id' =>  $master->user_id,
+            'cabang_id'=> $master->cabang_id_ke,
             'jurnal'=> $jurnal_2
         ];
 
@@ -172,16 +177,20 @@ class SetorController extends Controller
             $dateakhir = date('Y-m-d 23:59:59', strtotime($day));
         }
 
-        $master = Setor::where('cabang_id', $cabang_id)
+        $pelaporan = Setor::where('cabang_id', $cabang_id)
         ->where('created_at','>=',$dateawal)    
         ->where('created_at','<=',$dateakhir);
-        
+       
+        $terbuku = Setor::where('cabang_id', $cabang_id)
+        ->where('created_at','>=',$dateawal)    
+        ->where('created_at','<=',$dateakhir);
+
         // PELAPORAN
-        $output['pelaporan']['data']  = $master->where('status', 'SEND')->get();
-        $output['pelaporan']['total']  = $master->where('status', 'SEND')->sum('nominal');
+        $output['pelaporan']['data']  = $pelaporan->where('status','!=', 'REJECT')->get();
+        $output['pelaporan']['total']  = $pelaporan->where('status','!=', 'REJECT')->sum('nominal');
         // TERBUKU
-        $output['terbuku']['data']  = $master->where('status', 'APPROVE')->get();
-        $output['terbuku']['total']  = $master->where('status', 'APPROVE')->sum('nominal');
+        $output['terbuku']['data']  = $terbuku->where('status', 'APPROVED')->get();
+        $output['terbuku']['total']  = $terbuku->where('status', 'APPROVED')->sum('nominal');
 
         $output['sisa'] = $output['pelaporan']['total'] - $output['terbuku']['total'];
 
