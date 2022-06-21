@@ -1,6 +1,8 @@
 <?php
 
 namespace App\Http\Controllers;
+
+use App\Models\Cabang;
 use Illuminate\Support\Facades\DB;
 
 use Illuminate\Http\Request;
@@ -9,7 +11,7 @@ use App\Models\Kontak;
 use App\Models\TransaksiPenjualan;
 use App\Models\TransaksiPembelian;
 use App\Models\Pembayaran;
-
+use App\Models\PO;
 
 class UtangPiutangController extends Controller
 {
@@ -27,7 +29,7 @@ class UtangPiutangController extends Controller
         // return $dateakhir;
 
         if($dd == "null"){
-            $dateawal = date("2021-01-01 00:00:00");
+            $dateawal = date("Y-01-01 00:00:00");
         }
         if($ddd =="null"){
             $dateakhir = date("Y-m-d 23:59:59");
@@ -60,7 +62,7 @@ class UtangPiutangController extends Controller
         $dateakhir = date("Y-m-d 23:59:59", strtotime($ddd));
 
         if($dd = "null"){
-            $dateawal = date("2021-01-01 00:00:01");
+            $dateawal = date("Y-01-01 00:00:01");
         }
         if($ddd ="null"){
             $dateakhir = date("Y-m-d 23:59:59");
@@ -167,7 +169,7 @@ class UtangPiutangController extends Controller
         // return $dateakhir;
 
         if($dd == "null"){
-            $dateawal = date("2021-01-01 00:00:00");
+            $dateawal = date("Y-01-01 00:00:00");
         }
         if($ddd =="null"){
             $dateakhir = date("Y-m-d 23:59:59");
@@ -200,7 +202,7 @@ class UtangPiutangController extends Controller
         $dateakhir = date("Y-m-d 23:59:59", strtotime($ddd));
 
         if($dd = "null"){
-            $dateawal = date("2021-01-01 00:00:01");
+            $dateawal = date("Y-01-01 00:00:01");
         }
         if($ddd ="null"){
             $dateakhir = date("Y-m-d 23:59:59");
@@ -221,8 +223,6 @@ class UtangPiutangController extends Controller
     }
 
     public function storeUtang(Request $payload){
-
-
         $output = [];
         foreach ($payload->data_utang as $key => $utang) {
             if($utang['jumlah_pembayaran'] != 0){
@@ -298,4 +298,75 @@ class UtangPiutangController extends Controller
 
         return $output->json();
     }
+
+    // UTANG PO
+    public function utangPO(Request $payload){
+        $cabang_id = $payload->input('cabang');
+
+        $dd= $payload->input('dd');
+        $ddd = $payload->input('ddd');
+
+        $dateawal = date("Y-m-d 00:00:00", strtotime($dd));
+        $dateakhir = date("Y-m-d 23:59:59", strtotime($ddd));
+        // return $dateakhir;
+
+        if($dd == null){
+            $dateawal = date("Y-01-01 00:00:00");
+        }
+        if($ddd ==null){
+            $dateakhir = date("Y-m-d 23:59:59");
+        }
+        
+        $master = PO::where('cabang_id', $cabang_id)
+        ->whereDate('created_at','>=',$dateawal)    
+        ->whereDate('created_at','<=   ',$dateakhir)
+        ->get();
+        foreach ($master as $key => $value) {
+            $value->transaksi = TransaksiPenjualan::find($value->master_penjualan_id);
+            $value->cabang_tujuan = Cabang::find($value->tujuan_cabang_id);
+            $value->list_pembayaran = Pembayaran::where('penjualan_id', $value->master_penjualan_id)->get();
+            $value->jumlah_pembayaran = 0;
+            $value->lunas_check = false;
+        }
+        return response()->json($master, 200);
+
+    }
+    public function storeUtangPo(Request $payload){
+        $output = [];
+        foreach ($payload->data_utang as $key => $utang) {
+            if($utang['jumlah_pembayaran'] != 0){
+                $data = Pembayaran::create([
+                    'pembelian_id'=>$utang['id'],
+                    'nominal'=> $utang['jumlah_pembayaran'],
+                    'catatan'=>'Pembayaran utang secara '. $payload->transfer === true ? 'Transfer melalui Bank '. $payload->bank['title'] : 'Tunai ' . ' Tanggal '. date("d-m-Y"),
+                    'cara_pembayaran'=> "TRANSFER",
+                    'user_id' => $payload->user['id'],
+                    'cabang_id'=> $payload->user['cabang_id'],
+                ]);
+
+            $master = TransaksiPembelian::find($utang['id']);
+            $nomor_transaksi = $master->nomor_transaksi;
+            $catatan = 'PO#'.$nomor_transaksi;
+
+            $postJurnal = $this->postJurnalUtang($payload, $utang, $catatan);
+
+            $data->nomor_jurnal = $postJurnal['nomor_jurnal'];
+            $data->save();
+
+            if($postJurnal){
+                $master->sisa_pembayaran = $master->sisa_pembayaran - $utang['jumlah_pembayaran'];
+                $master->save();
+            }
+            }
+
+            $output[] = $data;
+        }
+
+        return response()->json($output, 200);
+
+       
+
+
+    }
+
 }

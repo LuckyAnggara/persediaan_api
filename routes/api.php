@@ -17,6 +17,10 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('auth:api')->get('/user', function (Request $request) {
     return $request->user();
 });
+// CLEAR
+Route::group(['prefix' => 'clear'], function () {
+    Route::get('/clear', 'ClearController@clear');
+});
 
 // AUTH
 Route::group(['prefix' => 'auth'], function () {
@@ -162,6 +166,7 @@ Route::group(['prefix' => 'utang-piutang'], function () {
     //GET
     Route::get('/get-utang', 'UtangPiutangController@getUtang');
     Route::get('/get-piutang', 'UtangPiutangController@getPiutang');
+    Route::get('/get-utang-po', 'UtangPiutangController@utangPO');
     Route::get('/get-list-supplier', 'UtangPiutangController@getListSupplier');
     Route::get('/get-list-pelanggan', 'UtangPiutangController@getListPelanggan');
     //DELETE
@@ -232,6 +237,18 @@ Route::group(['prefix' => 'setor'], function () {
     Route::post('/confirm/', 'SetorController@confirm');
 });
 
+// SALES
+Route::group(['prefix' => 'sales'], function () {
+    //GET
+    Route::get('/all-performance', 'SalesController@allPerformance');
+});
+
+// USER
+Route::group(['prefix' => 'user'], function () {
+    //GET
+    Route::get('/', 'UserController@index');
+});
+
 // Laporan
 
 Route::group(['prefix'=>'laporan'], function(){
@@ -242,5 +259,6 @@ Route::group(['prefix'=>'laporan'], function(){
     Route::get('/persediaan/transfer/', 'LaporanController@laporanPersediaanTransfer');
     Route::get('/gaji/', 'LaporanController@gaji');
     Route::get('/cabang/', 'LaporanController@cabang');
+    Route::get('/kasir/', 'LaporanController@kasir');
     Route::get('/print/', 'LaporanController@print');
 });

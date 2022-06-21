@@ -292,6 +292,7 @@ class TransaksiPembelianController extends Controller
                     foreach ($payload->orders as $key => $value) {
                         $hargaBeli = HargaBeli::create([
                             'master_barang_id' => $value['id_barang'],
+                            'saldo_awal' => $value['jumlah'],
                             'saldo' => $value['jumlah'],
                             'harga_beli' => $value['harga'],
                             'jenis' => 'PEMBELIAN_'.$id,

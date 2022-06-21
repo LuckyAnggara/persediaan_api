@@ -245,6 +245,7 @@ class TransaksiPenjualanController extends Controller
                         'barang_id' => $value['id_barang'],
                         'jumlah' => $value['jumlah'],
                         'harga' => $value['harga'],
+                        'harga_beli' => $value['modal'],
                         'diskon' => $value['diskon'],
                         'total' => ($value['jumlah'] * $value['harga']) - $value['diskon'],
                     ]);
@@ -376,6 +377,7 @@ class TransaksiPenjualanController extends Controller
             $xx = HargaBeli::create([
                 'master_barang_id' => $value->master_barang_id,
                 'saldo' => $value->jumlah,
+                'saldo_awal' => $value->jumlah,
                 'harga_beli' => $value->harga,
                 'jenis' => 'RETUR_'.$master->id,
                 'user_id' => $value->user_id,
@@ -409,6 +411,7 @@ class TransaksiPenjualanController extends Controller
 
     }
     public function retur(Request $payload){
+        $gudang = Gudang::where('cabang_id', $payload->user['cabang_id'])->where('utama', '1')->first();
         $output = [];
         $newpersediaan = [];
         $master = TransaksiPenjualan::findOrFail($payload->id);
@@ -429,7 +432,8 @@ class TransaksiPenjualanController extends Controller
                 'jumlah' => $value->jumlah,
                 'harga' => $value->harga,
                 'catatan' => 'RETUR '.$value->catatan,
-                'user_id' => $value->user_id,
+                'gudang_id' => $gudang->id,
+                'user_id' => $value->user_id,   
                 'cabang_id'=>$value->cabang_id,
                 'created_at' =>date("Y-m-d h:i:s"),
                 'updated_at' =>$value->updated_at,
@@ -438,12 +442,13 @@ class TransaksiPenjualanController extends Controller
 
             $xx = HargaBeli::create([
                 'master_barang_id' => $value->master_barang_id,
+                'saldo_awal' => $value->jumlah,
                 'saldo' => $value->jumlah,
                 'harga_beli' => $value->harga,
                 'jenis' => 'RETUR_'.$payload->id,
                 'user_id' => $value->user_id,
                 'cabang_id'=>$value->cabang_id,
-                'gudang_id'=>1,
+                'gudang_id' => $gudang->id,
                 'created_at' =>date("Y-m-d h:i:s"),
                 'updated_at' =>$value->updated_at,
             ]);

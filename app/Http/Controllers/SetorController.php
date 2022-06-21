@@ -48,8 +48,8 @@ class SetorController extends Controller
        $data =  Setor::create([
             'cabang_id_dari' => $payload->user['cabang_id'],
             'cabang_id_ke' => 1,
-            'kode_akun_id_dari' => $payload->dari == 'TUNAI' ? $cabang_asal->kode_akun_id : $payload->bank['id'],
-            'kode_akun_id_ke' =>  $payload->jenis_penyetoran['title'] === 'TRANSFER' ?  $payload->bank['id'] : $cabang_tujuan->kode_akun_id,
+            'kode_akun_id_dari' => $payload->dari == 'TUNAI' ? $cabang_asal->kode_akun_id : $payload->bank['kode_akun_id'],
+            'kode_akun_id_ke' =>  $payload->jenis_penyetoran['title'] === 'TRANSFER' ?  $payload->bank['kode_akun_id'] : $cabang_tujuan->kode_akun_id,
             'lawan_akun' => 65, //KODE AKUN ID SETOR MASTER
             'nominal' => $payload->jumlah,
             'tipe' => $payload->jenis_penyetoran['title'],

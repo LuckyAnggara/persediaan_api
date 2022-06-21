@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\User;
 use App\Models\Cabang;
 use App\Models\Pegawai;
+use App\Models\Role;
 
 class AuthController extends Controller
 {
@@ -24,11 +25,13 @@ class AuthController extends Controller
 
                 $pegawai = Pegawai::find($user->pegawai_id);
                 $cabang = Cabang::find($user->cabang_id);
-
+                $role = Role::find($user->role_id);
                 $user->fullName = $pegawai->full_name;
                 $user->avatar = $pegawai->avatar;
                 $user->cabang = $cabang;
                 $user->pegawai = $pegawai;
+                $user->role = $role;
+
                 
 
                 $response = $user;

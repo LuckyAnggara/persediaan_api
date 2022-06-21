@@ -71,7 +71,7 @@ class POController extends Controller
         $id = $payload->input('cabang_id');
         try{
             $output = [];
-            $master = PO::where('tujuan_cabang_id', $id)->where('status_po','!=','DIBATALKAN')->get();
+            $master = PO::where('tujuan_cabang_id', $id)->get();
 
             foreach ($master as $key => $value) {
                 $detail = DetailPO::where('master_po_id', $value->id)->get();
@@ -288,7 +288,7 @@ class POController extends Controller
         $jurnal =  $output->json();
 
         $master = PO::find($payload->data_po['id']);
-        $master->nomor_jurnal = $jurnal;
+        $master->nomor_jurnal = $jurnal['nomor_jurnal'];
         $master->save();
 
         return response()->json($master, 200);
@@ -296,36 +296,19 @@ class POController extends Controller
 
     }
 
-
-
-
-
     public function updateStatus(Request $payload){
         $id = $payload->id;
         $status = $payload->status;
-        $nomorTransaksi = $payload->nomorTransaksi;
+
 
         $master = PO::findOrFail($id);
-        $master->status_po_masuk = $status;
-        $master->status_po = $status;
-        // if($nomorTransaksi){
-            $master->nomor_transaksi = $nomorTransaksi;
-        // }
+        $master->status = $status;
+
+        if($payload->nomor_transaksi) $master->nomor_transaksi = $payload->nomor_transaksi;
+        if($payload->master_penjualan_id) $master->master_penjualan_id = $payload->master_penjualan_id;
         $master->save();
 
 
-        if($master){
-            return response()->json($master, 200);
-        }
-        return response()->json($master, 404);
-
-    }
-
-    public function updateStatusMasuk(Request $payload){
-        $master = PO::find($payload->id);
-
-        $master->status_po_masuk = $payload->status;
-        $master->save();
         if($master){
             return response()->json($master, 200);
         }
@@ -372,4 +355,6 @@ class POController extends Controller
         }
         return 'PO#'.$date.'-'.'1';      
     }
+
+
 }

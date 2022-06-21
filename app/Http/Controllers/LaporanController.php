@@ -18,17 +18,13 @@ use App\Models\Gudang;
 use App\Models\Pegawai;
 use App\Models\Barang;
 use App\Models\Cabang;
-
-
-
+use App\Models\Kontak;
+use App\Models\Setor;
 use PDF;
 
 
 class LaporanController extends Controller
 {
-
-
-
     public function laporanTransaksiPenjualan(Request $payload){
 
         $tanggal_awal = $payload->input('tanggal_awal');
@@ -123,8 +119,7 @@ class LaporanController extends Controller
         $data = DB::table('barang')
         ->join('jenis_barang', 'barang.jenis_id', '=', 'jenis_barang.id')
         ->join('merek_barang', 'barang.merek_id', '=', 'merek_barang.id')
-        ->join('gudang', 'barang.gudang_id', '=', 'gudang.id')
-        ->select('barang.*', 'gudang.nama as nama_gudang','jenis_barang.nama as nama_jenis', 'merek_barang.nama as nama_merek')
+        ->select('barang.*', 'jenis_barang.nama as nama_jenis', 'merek_barang.nama as nama_merek')
         ->where('barang.deleted_at', '=',null)
         ->get();
 
@@ -263,45 +258,162 @@ class LaporanController extends Controller
 
     public function cabang(Request $payload){
 
-        $id = $payload->input('cabang_id');
-        $bulan = $payload->input('bulan');
-        $tanggal = $payload->input('tanggal');
-        if($bulan != null){
-            $month = $this->getMonthNumber($bulan);
-            $param2 = 'bulan='.$month;
-        }else{
-            $param2 = 'tanggal='.$tanggal;
+        $cabang_id = $payload->input('cabang_id');
+        $year = $payload->input('tahun');
+        $month = $payload->input('bulan');
+        $day = $payload->input('hari');
+
+        if($year != null){
+            $dateawal = date($year.'-01-01 00:00:00');
+            $dateakhir = date($year.'-12-31 23:59:59');
+        }
+        if($month != null){
+            $dateawal =  date('Y-'.$month.'-01 00:00:00');
+            $dateakhir = date('Y-'.$month.'-31 23:59:59');
+        }
+        if($day != null){
+            $dateawal = date('2021-m-d 00:00:00', strtotime($day));
+            $dateakhir = date('Y-m-d 23:59:59', strtotime($day));
         }
 
 
-
-        $master = Cabang::findOrFail($id);
-        $user = User::where('cabang_id', $master->id)->get();
-        $gudang = Gudang::where('cabang_id', $master->id)->get();
-        $saldo_kas = 0;
-        $saldo_persediaan = 0;
-        $saldo_beban_operasional = 0;
-        foreach ($user as $key => $value) {
-            $saldo = Http::get(keuanganBaseUrl().'akun/cek-saldo?id='.$value->kode_akun_id.'&cabang_id='.$id.'&'.$param2)->json();
-            $saldo_kas += $saldo;
+        $cabang = Cabang::find($cabang_id);
+        $daftar_penjualan = TransaksiPenjualan::where('cabang_id', $cabang_id)
+        ->where('retur','Tidak')    
+        ->where('created_at','>=',$dateawal)    
+        ->where('created_at','<=',$dateakhir)                          
+        ->get();
+        foreach ($daftar_penjualan as $key => $penjualan) {
+            $penjualan->kontak = Kontak::find($penjualan->kontak_id);
         }
-        foreach ($gudang as $key => $value) {
-            $saldo = Http::get(keuanganBaseUrl().'akun/cek-saldo?id='.$value->kode_akun_id.'&cabang_id='.$id.'&'.$param2)->json();
-            $saldo_persediaan += $saldo;
-        }
-        $saldo_penjualan = Http::get(keuanganBaseUrl().'akun/cek-saldo?id=32&cabang_id='.$id.'&'.$param2)->json();
-        $saldo_beban_operasional = Http::get(keuanganBaseUrl().'akun/cek-saldo?id=42&cabang_id='.$id.'&'.$param2)->json();
-        // INJECT
-        $master->kas = $saldo_kas;
-        $master->penjualan = $saldo_penjualan;
-        $master->persediaan = $saldo_persediaan;
-        $master->beban_operasional = $saldo_beban_operasional;
 
-        return $master;
+        $hpp = Http::get(keuanganBaseUrl().'akun/cek-saldo?akun_id=44&cabang_id='.$cabang_id.'&tahun='.$year.'&bulan='.$month.'&hari='.$day);
+        $daftar_beban_operasional = Http::get(keuanganBaseUrl().'beban/get-beban?cabang_id='.$cabang_id.'&tahun='.$year.'&bulan='.$month.'&hari='.$day);
+        $master_gaji = Gaji::where('cabang_id', $cabang_id)
+        ->where('created_at','>=',$dateawal)    
+        ->where('created_at','<=',$dateakhir)      
+        ->get();
+        $daftar_beban_gaji = [];
+        foreach ($master_gaji as $key => $gaji) {
+            $detail_gaji = DetailGaji::where('master_gaji_id', $gaji->id)->get();
+
+            foreach ($detail_gaji as $key => $detail) {
+                $detail->pegawai = Pegawai::find($detail->pegawai_id);
+                $daftar_beban_gaji[] = $detail;
+            }
+        }
+
+        $daftar_persediaan = Gudang::where('cabang_id', $cabang_id)->get();
+
+        foreach ($daftar_persediaan as $key => $value) {
+            $value->saldo =  Http::get(keuanganBaseUrl().'akun/cek-saldo?akun_id='.$value->kode_akun_id.'&cabang_id='.$cabang_id.'&tahun='.$year.'&bulan='.$month.'&hari='.$day)->json();
+        }
+
+        $daftar_laporan_setoran = Setor::where('cabang_id', $cabang_id)
+        ->where('created_at','>=',$dateawal)    
+        ->where('created_at','<=',$dateakhir)
+        ->get();
+
+        $output['transaksi_penjualan'] = $daftar_penjualan;
+        $output['hpp'] = $hpp->json();
+        $output['daftar_beban_operasional'] = $daftar_beban_operasional->json();
+        $output['daftar_beban_gaji'] = $daftar_beban_gaji;
+        $output['daftar_persediaan'] = $daftar_persediaan;
+        $output['daftar_laporan_setoran'] = $daftar_laporan_setoran;
+
+
+        return response()->json($output, 200);
+
     
-        return view('laporan.cabang',['payload'=>$payload,'master'=>$master]);
+        // return view('laporan.cabang',['payload'=>$payload,'master'=>$master]);
     	// $pdf = PDF::loadview('laporan.gaji',['detail'=>$detail,'master'=>$master,'total'=>$total]);
     	// return $pdf->download('laporan-'.$master->created_at->format('d-m-y').'gaji.pdf');
+    }
+
+    public function kasir(Request $payload){
+        $kasir_id = $payload->input('kasir_id');
+        
+        $user = User::find($kasir_id);
+
+        $dd = $payload->input('hari');
+        $tanggal_awal = date('Y-m-d 00:00:00', strtotime($dd));
+        $tanggal_akhir = date('Y-m-d 23:59:59', strtotime($dd));
+
+        $transaksi_penjualan = TransaksiPenjualan::where('user_id', $user->id)
+        ->where('cabang_id', $user->cabang_id)
+        ->whereDate('created_at','>=', $tanggal_awal)
+        ->whereDate('created_at','<=', $tanggal_akhir)
+        ->get();
+
+        $penjualan = [];
+
+        foreach ($transaksi_penjualan as $key => $value) {
+            $invoice = [
+                'diskon'=>$value->diskon,
+                'grandTotal'=>$value->grand_total,
+                'ongkir'=>$value->ongkir,
+                'pajak'=>$value->pajak_keluaran,    
+                'total'=>$value->total,
+            ];
+    
+            $user = User::join('master_pegawai','users.pegawai_id','=','master_pegawai.id')
+            ->where('users.id','=',$value->user_id)->first(['users.*', 'master_pegawai.nama']);
+            $user->pegawai = Pegawai::find($user->pegawai_id);
+
+            $sales = Pegawai::where('id',$value->sales_id)->first();
+    
+            $pelanggan = DB::table('master_kontak')
+            ->where('id','=',$value->kontak_id)
+            ->first();
+    
+            $bank = DB::table('master_bank')
+            ->where('id','=',$value->bank_id)
+            ->first();
+            $pembayaran = [
+                'bank'=>$bank,
+                'downPayment'=>$value->down_payment,
+                'sisaPembayaran'=>$value->sisa_pembayaran,
+                'jenisPembayaran' => app('App\Http\Controllers\TransaksiPenjualanController')->caraPembayaran($value->cara_pembayaran),
+                'kredit'=>$value->kredit,
+                'statusPembayaran'=>app('App\Http\Controllers\TransaksiPenjualanController')->metodePembayaran($value->metode_pembayaran),
+                'tanggalJatuhTempo'=>$value->tanggal_jatuh_tempo,
+                'status'=>$value->sisa_pembayaran == 0 ? 'LUNAS' : 'BELUM LUNAS',
+            ];
+    
+            $data = [
+                'id'=>$value->id,
+                'catatan'=>$value->id,
+                'retur'=>$value->retur,
+                'nomorTransaksi'=>$value->nomor_transaksi,
+                'tanggalTransaksi'=>$value->created_at->format('d F Y'),
+                'nomorJurnal' => $value->nomor_jurnal,
+                'invoice'=> $invoice,
+                'pelanggan'=>$pelanggan,
+                'pembayaran'=>$pembayaran,
+                'user'=> $user,
+                'sales'=>$sales
+
+            ];
+    
+            $penjualan[] = $data;
+        }
+
+        // $detailKas = Http::get(keuanganBaseUrl().'ledger?cabang_id='.$user->cabang_id.'&akun_id='.$user->kode_akun_id.'&dd='.$dd.'&ddd='.$dd)->body();
+        $detailKas = Http::get(keuanganBaseUrl().'ledger?cabang_id=1&akun_id=56&dd=2021-01-15&ddd=2021-10-15')->json();
+
+        
+
+
+        $pdf = PDF::loadview('laporan.kasir',
+        [
+        'penjualan'=>$penjualan,
+        'payload'=>$payload,
+        'user'=> $user, 
+        'kas' => $detailKas
+        ]
+        );
+    	return $pdf->download('laporan-kasir-'.$dd.'.pdf');
+       
     }
 
     function getMonthNumber($monthStr) {
